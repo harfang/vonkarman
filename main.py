@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
     Ly = Ny dy
 """
 
-COUCOU
+Bonjour
 
 ## Définition des constantes
 Lx = 5
