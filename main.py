@@ -22,8 +22,6 @@ import matplotlib.pyplot as plt
     Ly = Ny dy
 """
 
-Bonjour
-
 ## Définition des constantes
 Lx = 5
 Ly = 1
@@ -49,8 +47,8 @@ if r > Ly or r > Lx:
 Nt = 1000
 
 ## Conditions initiales
-u = np.zeros(Nx, Ny)
-v = np.zeros(Nx, Ny)
+u = np.zeros((Nx, Ny))
+v = np.zeros((Nx, Ny))
 
 ## Définition des fonctions
 def condition_cfl(u, v, Re):
@@ -61,7 +59,7 @@ def condition_cfl(u, v, Re):
 
 def laplacien(f):
 	"""Renvoie le laplacien de la fonction scalaire f"""
-	laplacien_f = np.empty((NY,NX))
+	laplacien_f = np.empty((Nx, Ny))
 	dx_2 = 1/(dx)**2
 	dy_2 = 1/(dy)**2
 	coef0 = -2*(dx_2 + dy_2)  
@@ -70,10 +68,18 @@ def laplacien(f):
 	
 def divergence(u, v):
 	"""Renvoie la divergence du champ de vecteurs (u, v). Schéma centré (ordre 2)."""
+	div = np.empty((Nx, Ny))
+	div[1:-1,1:-1] = ((u[1:-1, 2:] - u[1:-1, :-2])/(dx/2) +(v[2:, 1:-1] - v[:-2, 1:-1])/(dy/2))
 	return div
 	
 def grad(f):
 	"""Renvoie le gradient de f. Schéma centré (ordre 2)."""
+	grad_f_x = np.empty((Nx, Ny))
+	grad_f_y = np.empty((Nx, Ny))
+	
+	grad_f_x[1:-1, :] = (f[1:-1, :] - f[1:-1, :])/(2*dx)
+	grad_f_y[:, 1:-1] = (f[2:, 1:-1] - f[:, 1:-1])/(2*dy)
+	
 	return grad_f_x, grad_f_y
 	
 def cl_objet(ustar, vstar):
