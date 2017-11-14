@@ -22,6 +22,8 @@ import matplotlib.pyplot as plt
     Ly = Ny dy
 """
 
+COUCOU
+
 ## Définition des constantes
 Lx = 5
 Ly = 1
