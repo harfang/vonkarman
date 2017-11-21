@@ -55,7 +55,7 @@ u = np.zeros((Nx, Ny))
 v = np.zeros((Nx, Ny))
 
 
-## Définition de l'objet
+## Definition de l'objet
 #On place le centre de l'objet en (5r, Ly/2)
 #la matrice objet renvoie une matrice pleine de 1 là où il y a l'objet et pleine de 0 là où il n'y est pas
 #objet=np.zeros(Nx,Ny)
@@ -69,7 +69,7 @@ objet = np.array([[1 if (i*dx-5*r)**2+(j*dy-0.5*Ly)**2 < r**2 for i in range(Nx)
 ## Laplacien 2D
 matrice_laplacien_2D = construction_matrice_laplacien_2D(Nx, Ny)
 
-## Définition des fonctions
+## Definition des fonctions
 def condition_cfl(u, v, Re):
 	facteur_de_precaution_cfl = 0.7
 	#1. Advection
@@ -146,25 +146,27 @@ def construction_matrice_laplacien_2D(Nx, Ny):
 	DYY2[-1,:] = np.zeros(DYY2[-1,:].shape)
 	
 	lap2D = sp.kron(sp.eye(Ny,Ny), DXX2) + sp.kron(DYY2, sp.eye(Nx,Nx)) #sparse
-	
-	#On va d'abord faire en sorte que le gradient de phi soit nul au bord en bas
-	for i in range(Nx):
-		for j in range(Nx*Ny-Ny,Nx*Ny):
-			lap2D[i,j-2*Nx]+=lap2D[i,j]
-			lap2D[i,j]=0
-	#On fait maintenant de meme avec le flux au bord en haut
-	for i in range(Nx):
-		for j in range(0,Ny):
-			lap2D[i,j+2*Nx]+=lap2D[i,j]
-			lapd2D[i,j]=0
-	#On fait le flux de gauche nul aussi
-	for i n range(Nx):
-		for j in range(Ny):
-			lap2D[j,i*Nx+2]+=lap2D[j,i*Nx]
-			lap2D[j,i*Nx]=0
-	
-	#Maintenant il fut prendre en compte le fait que phi est nul  droite
-	
+	#Il faut maintenant prendre en compte les conditions limites
+	#Par exemple, les CL imposent phi_2,j=phi_0,j ainsi on peut le voir comme une application linéaire qui
+	#envoie le vecteur phi_2,j sur phi_0,j et phi_2,j, l'image de phi_0,j est le vecteur nul et ceci pour tout j
+	#Il suffira ensuite de multiplier la matrice précédente par cette matrice et on aura les conditions limites en haut
+	matrice = np.eye(Nx*Ny)
+	#On la modifie pour satisfaire les conditions limites en haut
+	for i in  range(Nx):
+		matrice[i,i]=0
+		matrice[i+2*Nx,i]=1
+	#Maintenant pour satisfaire les conditions limites en bas
+	for i in range(Nx*Ny-Nx, Nx*Ny):
+		matrice[i,i]=0
+		matrice[i-2*Nx,i]=1
+	#On fait les conditions limites de gauche
+	for j in range(Ny):
+		matrice[Nx*j,Nx*j]=0
+		matrice[Nx*j+2,Nx*j]=1 		
+	#et les conditions à droite
+	for j in range(Ny):
+		matrice[j*Nx-2,j*Nx-2]=0
+
 	return lap2D
 	
 def cl_objet(ustar, vstar):
@@ -196,7 +198,7 @@ def points_fantomes_vitesse(u, v):
 	pass
 
 t_simu = 0
-
+"""
 ## Boucle principale
 for n in range(Nt):
 	#Calcul du nouveau dt pour respecter les conditions CFL
@@ -238,3 +240,4 @@ for n in range(Nt):
 		plt.imshow(np.sqrt(u[1:-1,1:-1]**2+v[1:-1,1:-1]**2),origin='lower',cmap='bwr')
 		plt.axis('image')
 		plt.savefig("{}_{}_t={}.jpg".format(date_simulation, n, t_simu))
+"""
