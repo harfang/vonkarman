@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 """
     u : vitesse horizontale (Ox)
@@ -21,6 +22,8 @@ import matplotlib.pyplot as plt
     Lx = Nx dx
     Ly = Ny dy
 """
+
+date_simulation = time.time()
 
 ## Définition des constantes
 Lx = 5
@@ -45,20 +48,11 @@ if r > Ly or r > Lx:
 	print("ERREUR SUR r : r > Ly or r > Lx")
 
 Nt = 1000
+pas_enregistrement = 30 #sauvegarde d'une image sur 30
 
 ## Conditions initiales
 u = np.zeros((Nx, Ny))
 v = np.zeros((Nx, Ny))
-
-##Définition de l'objet
-#On place le centre de l'objet en (5r, Ly/2)
-#la matrice objet renvoie une matrice pleine de 1 là où il y a l'objet et pleine de 0 là où il n'y est pas
-objet=np.zeros(Nx,Ny)
-for i in range(Nx):
-	for j in range(Ny):
-		if (i*dx-5*r)**2+(j*dy-0.5*Ly)**2 < r**2:
-			objet[i][j]=1
-
 
 ## Définition des fonctions
 def condition_cfl(u, v, Re):
@@ -87,21 +81,18 @@ def grad(f):
 	grad_f_x = np.empty((Nx, Ny))
 	grad_f_y = np.empty((Nx, Ny))
 	
-	grad_f_x[1:-1, :] = (f[1:-1, :] - f[1:-1, :])/(2*dx)
-	grad_f_y[:, 1:-1] = (f[2:, 1:-1] - f[:, 1:-1])/(2*dy)
+	grad_f_x[1:-1, :] = (f[2:, :] - f[:-2, :])/(2*dx)
+	grad_f_y[:, 1:-1] = (f[:, 2:] - f[:, :-2])/(2*dy)
 	
 	return grad_f_x, grad_f_y
 	
 def cl_objet(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la vitesse autour de l'objet"""
-	#on multiplie ustar et vstar par une matrice pleine de 1 là où il n'y a pas l'objet et de zéros là où il y a l'objet
-	ustar=(np.ones(Nx,Ny)-objet)*ustar
-	vstar=(np.ones(Nx,Ny)-objet)*vstar
 	pass
 
 def cl_soufflerie(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie"""
-	pass
+	
 	
 def cl_phi(phi):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie et de l'objet"""
@@ -148,3 +139,14 @@ for n in range(Nt):
 	
 	#Mise à jour des points fantômes
 	points_fantomes_vitesse(u, v)
+	
+	#Fin du calcul
+	
+	# Affichage
+	
+	# Premier script : enregistrement d'une image sur pas_enregistrement
+	if n%pas_enregistrement == 0:
+		plt.clf()
+		plt.imshow([1:-1,1:-1],origin='lower',cmap='bwr')
+		plt.axis('image')
+		plt.savefig("{}_{}.jpg".format(date_simulation, n))
