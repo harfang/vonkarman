@@ -147,7 +147,23 @@ def construction_matrice_laplacien_2D(Nx, Ny):
 	
 	lap2D = sp.kron(sp.eye(Ny,Ny), DXX2) + sp.kron(DYY2, sp.eye(Nx,Nx)) #sparse
 	
+	#On va d'abord faire en sorte que le gradient de phi soit nul au bord en bas
+	for i in range(Nx):
+		for j in range(Nx*Ny-Ny,Nx*Ny):
+			lap2D[i,j-2*Nx]+=lap2D[i,j]
+			lap2D[i,j]=0
+	#On fait maintenant de meme avec le flux au bord en haut
+	for i in range(Nx):
+		for j in range(0,Ny):
+			lap2D[i,j+2*Nx]+=lap2D[i,j]
+			lapd2D[i,j]=0
+	#On fait le flux de gauche nul aussi
+	for i n range(Nx):
+		for j in range(Ny):
+			lap2D[j,i*Nx+2]+=lap2D[j,i*Nx]
+			lap2D[j,i*Nx]=0
 	
+	#Maintenant il fut prendre en compte le fait que phi est nul  droite
 	
 	return lap2D
 	
