@@ -54,6 +54,16 @@ pas_enregistrement = 30 #sauvegarde d'une image sur 30
 u = np.zeros((Nx, Ny))
 v = np.zeros((Nx, Ny))
 
+
+##Définition de l'objet
+#On place le centre de l'objet en (5r, Ly/2)
+#la matrice objet renvoie une matrice pleine de 1 là où il y a l'objet et pleine de 0 là où il n'y est pas
+objet=np.zeros(Nx,Ny)
+for i in range(Nx):
+	for j in range(Ny):
+		if (i*dx-5*r)**2+(j*dy-0.5*Ly)**2 < r**2:
+			objet[i][j]=1 
+
 ## Définition des fonctions
 def condition_cfl(u, v, Re):
 	#1. Advection
@@ -88,7 +98,10 @@ def grad(f):
 	
 def cl_objet(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la vitesse autour de l'objet"""
-	pass
+	
+	#on multiplie ustar et vstar par une matrice pleine de 1 là où il n'y a pas l'objet et de zéros là où il y a l'objet
+	ustar=(np.ones(Nx,Ny)-objet)*ustar
+	vstar=(np.ones(Nx,Ny)-objet)*vstar 
 
 def cl_soufflerie(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie"""
