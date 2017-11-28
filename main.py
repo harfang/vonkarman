@@ -115,67 +115,42 @@ def grad(f):
 	
 	return grad_f_x, grad_f_y
 	
-def construction_matrice_laplacien_2D(Nx, Ny):
+def construction_matrice_laplacien_2D(nx, ny):
 	"""Construit et renvoie la matrice sparse du laplacien 2D"""
 	dx_2 = 1/(dx)**2
 	dy_2 = 1/(dy)**2
 	# Axe x
-	datax = [np.ones(Nx), -2*np.ones(Nx), np.ones(Nx)]
+	datax = [np.ones(nx), -2*np.ones(nx), np.ones(nx)]
 		
-#	## Conditions aux limites : Neumann 
-#	datax[2][1]     = 2.  # SF left
-#	datax[0][Nx-2] = 2.  # SF right
+	## Conditions aux limites : Neumann à gauche et Dirichlet à droite
+	datax[2][1]     = 2.  # SF left
+	datax[0][nx-2] = 2.  # SF right
 
 #	# Axe Y
-	datay = [np.ones(Ny), -2*np.ones(Ny), np.ones(Ny)] 
+	datay = [np.ones(ny), -2*np.ones(ny), np.ones(ny)] 
 #	  
-#	## Conditions aux limites : Neumann 
-#	datay[2][1]     = 2.  # SF low
-#	datay[0][Ny-2] = 2.  # SF top
+	## Conditions aux limites : Neumann 
+	datay[2][1]     = 2.  # SF low
+	datay[0][ny-2] = 2.  # SF top
 
 	# Construction de la matrice sparse
 	offsets = np.array([-1,0,1])                    
-	DXX = sp.dia_matrix((datax,offsets), shape=(Nx,Nx)) * dx_2
-	DYY = sp.dia_matrix((datay,offsets), shape=(Ny,Ny)) * dy_2
+	DXX = sp.dia_matrix((datax,offsets), shape=(nx,nx)) * dx_2
+	DYY = sp.dia_matrix((datay,offsets), shape=(ny,ny)) * dy_2
 	
 	DXX2 = DXX.todense()
 	DYY2 = DYY.todense()
 	
-	DXX2[0,:] = np.zeros(DXX2[0,:].shape)
-	DXX2[-1,:] = np.zeros(DXX2[-1,:].shape)
+#	DXX2[0,:] = np.zeros(DXX2[0,:].shape)
+#	DXX2[-1,:] = np.zeros(DXX2[-1,:].shape)
 
-	DYY2[0,:] = np.zeros(DYY2[0,:].shape)
-	DYY2[-1,:] = np.zeros(DYY2[-1,:].shape)
+#	DYY2[0,:] = np.zeros(DYY2[0,:].shape)
+#	DYY2[-1,:] = np.zeros(DYY2[-1,:].shape)
 	
-	lap2D = sp.kron(sp.eye(Ny,Ny), DXX2) + sp.kron(DYY2, sp.eye(Nx,Nx)) #sparse
+	lap2D = sp.kron( DXX2, sp.eye(Ny,Ny)) + sp.kron( sp.eye(Nx,Nx), DYY2) #sparse
 	
-	#Il faut maintenant prendre en compte les conditions limites
-	#Par exemple, les CL imposent phi_2,j=phi_0,j ainsi on peut le voir comme une application linéaire qui
-	#envoie le vecteur phi_2,j sur phi_0,j et phi_2,j, l'image de phi_0,j est le vecteur nul et ceci pour tout j
-	#Il suffira ensuite de multiplier la matrice précédente par cette matrice et on aura les conditions limites en haut
-	matrice = np.eye(Nx*Ny)
-	#On la modifie pour satisfaire les conditions limites en haut
-	for i in  range(1,Nx-1):#on pars de 1 pour ne pas prendre en compte les points fantomes
-		matrice[i,i]=0
-		matrice[i,i+2*Nx]=1
-	matrice[0][0]=0
-	matrice[Nx-1][Nx-1]=0
-	#Maintenant pour satisfaire les conditions limites en bas
-	for i in range(Nx*Ny-Nx+1, Nx*Ny-1):
-		matrice[i,i]=0
-		matrice[i,i-2*Nx]=1
-	matrice[Nx*Ny-Nx][Nx*Ny-Nx]=0
-	matrice[Nx*Ny-1][Nx*Ny-1]=0
-	#On fait les conditions limites de gauche
-	for j in range(1,Ny-1):
-		matrice[Nx*j,Nx*j]=0
-		matrice[Nx*j,Nx*j+2]=1 		
-	#Les angles ont deja ete mis nul ici donc c'est ok
-	#et les conditions à droite
-	for j in range(Ny):
-		matrice[j*Nx-2,j*Nx-2]=0
-	lap2D=np.dot(lap2D,matrice)
-	return lap2D,matrice
+	
+	return lap2D
 	
 def cl_objet(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la vitesse autour de l'objet"""
