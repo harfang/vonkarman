@@ -113,11 +113,58 @@ def grad(f):
 	
 	return grad_f_x, grad_f_y
 	
+def calcul_a_conv(u, v):
+	"""Calcul l'accélération convective u grad u"""
+	
+	# Matrice avec des 1 quand on va a droite, 
+    # 0 a gauche ou au centre
+    Mx2 = np.sign(np.sign(u[1:-1,1:-1]) + 1.)
+    Mx1 = 1. - Mx2
+
+    # Matrice avec des 1 quand on va en haut, 
+    # 0 en bas ou au centre
+    My2 = np.sign(np.sign(v[1:-1,1:-1]) + 1.)
+    My1 = 1. - My2
+
+    # Matrices en valeurs absolues pour u et v
+    au = abs(u[1:-1,1:-1]) /dx 
+    av = abs(v[1:-1,1:-1]) /dy
+
+    # Matrices des coefficients respectivement 
+    # central, exterieur, meme x, meme y     
+    Cc = (1. - au) * (1. - av) 
+    Ce = au * av
+    Cmx = (1. - au) * av
+    Cmy = (1. - av) * au
+
+    # Calcul des matrices de resultat 
+    # pour les vitesses u et v
+    Resu[1:-1,1:-1] = (Cc * u[1:-1, 1:-1] +            
+                       Ce * (Mx1*My1 * u[2:, 2:] + 
+                             Mx1*My2 * u[:-2, 2:] +
+                             Mx2*My1 * u[2:, :-2] +
+                             Mx2*My2 * u[:-2, :-2]) +  
+                       Cmx * (My1 * u[2:, 1:-1] +
+                              My2 * u[:-2, 1:-1]) +   
+                       Cmy * (Mx1 * u[1:-1, 2:] +
+                              Mx2 * u[1:-1, :-2]))
+    
+    Resv[1:-1,1:-1] = (Cc * v[1:-1, 1:-1] +            
+                       Ce * (Mx1*My1 * v[2:, 2:] + 
+                             Mx1*My2 * v[:-2, 2:] +
+                             Mx2*My1 * v[2:, :-2] +
+                             Mx2*My2 * v[:-2, :-2]) +  
+                       Cmx * (My1 * v[2:, 1:-1] +
+                              My2 * v[:-2, 1:-1]) +   
+                       Cmy * (Mx1 * v[1:-1, 2:] +
+                              Mx2 * v[1:-1, :-2]))
+	return Resu, Resv
+	
 def construction_matrice_laplacien_2D(Nx, Ny):
 	"""Construit et renvoie la matrice sparse du laplacien 2D"""
 	dx_2 = 1/(dx)**2
 	dy_2 = 1/(dy)**2
-	# Axe x
+	# Axe y
 	datax = [np.ones(Nx), -2*np.ones(Nx), np.ones(Nx)]
 		
 #	## Conditions aux limites : Neumann 
@@ -125,47 +172,47 @@ def construction_matrice_laplacien_2D(Nx, Ny):
 #	datax[0][Nx-2] = 2.  # SF right
 
 #	# Axe Y
-#	datay = [np.ones(Ny), -2*np.ones(Ny), np.ones(Ny)] 
+	datay = [np.ones(Ny), -2*np.ones(Ny), np.ones(Ny)] 
 #	  
 #	## Conditions aux limites : Neumann 
 #	datay[2][1]     = 2.  # SF low
 #	datay[0][Ny-2] = 2.  # SF top
 
 	# Construction de la matrice sparse
-	offsets = np.array([-1,0,1])                    
+	offsets = np.array([-1,0,1])               
 	DXX = sp.dia_matrix((datax,offsets), shape=(Nx,Nx)) * dx_2
 	DYY = sp.dia_matrix((datay,offsets), shape=(Ny,Ny)) * dy_2
 	
-	DXX2 = DXX.todense()
-	DYY2 = DYY.todense()
+	lap2D = sp.kron(DXX, sp.eye(Ny,Ny)) + sp.kron(sp.eye(Nx,Nx), DYY) #sparse
 	
-	DXX2[0,:] = np.zeros(DXX2[0,:].shape)
-	DXX2[-1,:] = np.zeros(DXX2[-1,:].shape)
-
-	DYY2[0,:] = np.zeros(DYY2[0,:].shape)
-	DYY2[-1,:] = np.zeros(DYY2[-1,:].shape)
+	dense_lap = lap2D.todense()
 	
-	lap2D = sp.kron(sp.eye(Ny,Ny), DXX2) + sp.kron(DYY2, sp.eye(Nx,Nx)) #sparse
+	# CL
+	for j in range(Ny):
+		# CL en haut
+		dense_lap[j, :] = np.zeros((1, Nx*Ny))
+		dense_lap[j,j] = 1
+		dense_lap[j, 2*Ny+j] = -1
+		
+		# Cl en bas
+		dense_lap[j+Ny*(Nx-1), :] = np.zeros((1, Nx*Ny))
+		dense_lap[j+Ny*(Nx-1), j+Ny*(Nx-1)] = 1
+		dense_lap[j+Ny*(Nx-1), j+Ny*(Nx-3)] = -1
+		
+	for i in range(1, Nx-1):
+		# CL à gauche
+		dense_lap[Ny*i, :] = np.zeros((1, Nx*Ny))
+		dense_lap[Ny*i, Ny*i] = 1
+		dense_lap[Ny*i, Ny*i+2] = -1
+	 
+		# CL à droite
+		dense_lap[Ny*i+Ny-1, :]	= np.zeros((1, Nx*Ny))
+		dense_lap[Ny*i+Ny-1, Ny*i+Ny-1] = 1
+		
+	#lap2D_sparse = sp.dia_matrix(dense_lap)
 	
-	#On va d'abord faire en sorte que le gradient de phi soit nul au bord en bas
-	for i in range(Nx):
-		for j in range(Nx*Ny-Ny,Nx*Ny):
-			lap2D[i,j-2*Nx]+=lap2D[i,j]
-			lap2D[i,j]=0
-	#On fait maintenant de meme avec le flux au bord en haut
-	for i in range(Nx):
-		for j in range(0,Ny):
-			lap2D[i,j+2*Nx]+=lap2D[i,j]
-			lapd2D[i,j]=0
-	#On fait le flux de gauche nul aussi
-	for i n range(Nx):
-		for j in range(Ny):
-			lap2D[j,i*Nx+2]+=lap2D[j,i*Nx]
-			lap2D[j,i*Nx]=0
-	
-	#Maintenant il fut prendre en compte le fait que phi est nul  droite
-	
-	return lap2D
+	#return lap2D_sparse
+	return dense_lap
 	
 def cl_objet(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la vitesse autour de l'objet"""
@@ -179,11 +226,22 @@ def cl_soufflerie(ustar, vstar):
 	pass
 	
 def cl_phi(phi):
-	"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie et de l'objet"""
+	"""Modifie les tableaux pour satifsaire les conditions aux limites de l'objet"""
 	pass
 
 def solve_laplacien(div, cl_phi):
 	"""Renvoie phi telle que laplacien(phi) = div, avec les conditions aux limites données par cl_phi (cl_phi travaille directement sur les tableaux)."""
+	
+	div[0,:] = np.zeros(Ny)
+	div[-1,:] = np.zeros(Ny)
+	div[:,0] = np.zeros(Nx)
+	div[:,-1] = np.zeros(Nx)
+	
+	div_flat = np.flatten(div)
+	
+	phi_flat = np.linalg.solve(matrice_laplacien_2D, div_flat)
+	phi = phi_flat.reshape((Nx, Ny))
+	cl_phi(phi)
 	
 	return phi
 	
@@ -203,11 +261,11 @@ for n in range(Nt):
 	dt = condition_cfl(u, v, Re)
 	
 	#Calcul de l'accélération convective
-	a_conv = calcul_a_conv(u, v)
+	a_conv_u, a_conv_v = calcul_a_conv(u, v)
 	
 	#Navier-Stokes
-	ustar = -a_conv + (1/Re)*laplacien(u)
-	vstar = -a_conv + (1/Re)*laplacien(v)
+	ustar = u + dt*(-a_conv_u + (1/Re)*laplacien(u))
+	vstar = v + dt*(-a_conv_v + (1/Re)*laplacien(v))
 	
 	#Conditions aux limites
 	## Soufflerie numérique
