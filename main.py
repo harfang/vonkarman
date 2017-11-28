@@ -162,7 +162,7 @@ def cl_objet(ustar, vstar):
 
 def cl_soufflerie(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie"""
-	ustar[:, 0]=1
+	ustar[:, 0]=1 #la question est faut-il mettre les CL sur les ghosts points ou pas ? Si non la valeur du gosth point est elle alors la même que celle juste avant ?
 	vstar[:, 0]=0
 	vstar[0, :]=0
 	vstar[-1, :]=0
@@ -181,7 +181,8 @@ def solve_laplacien(div, cl_phi):
 	
 def points_fantomes_phi(phi):
 	"""Met à jour les points fantomes de phi."""
-	pass
+	phi[0,:]=phi[2,:]
+	phi[-1,:]=phi[-3,:]
 	
 def points_fantomes_vitesse(u, v):
 	"""Met à jour les points fantomes de la vitesse"""
