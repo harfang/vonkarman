@@ -66,6 +66,7 @@ v = np.zeros((Nx, Ny))
 #		if (i*dx-5*r)**2+(j*dy-0.5*Ly)**2 < r**2:
 #			objet[i][j]=1 
 
+
 objet = np.array([[1 if (i*dx-5*r)**2+(j*dy-0.5*Ly)**2 < r**2 for i in range(Nx)] for j in range(Ny)])
 
 ## Laplacien 2D
@@ -123,8 +124,8 @@ def construction_matrice_laplacien_2D(nx, ny):
 	datax = [np.ones(nx), -2*np.ones(nx), np.ones(nx)]
 		
 	## Conditions aux limites : Neumann à gauche et Dirichlet à droite
-	datax[2][1]     = 2.  # SF left
-	datax[0][nx-2] = 2.  # SF right
+	datax[2][1]     = 2.  # SF left#
+#	datax[0][nx-1] = 0  # SF right --> serait-ce le point fantome qui vérifie phi=0 sinon on ne peut pas calculer le laplacien au bord
 
 #	# Axe Y
 	datay = [np.ones(ny), -2*np.ones(ny), np.ones(ny)] 
@@ -161,7 +162,13 @@ def cl_objet(ustar, vstar):
 
 def cl_soufflerie(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie"""
-	pass
+	ustar[:, 0]=1
+	vstar[:, 0]=0
+	vstar[0, :]=0
+	vstar[-1, :]=0
+	vstar[:,-1]=vstar[:,-3]
+	ustar[:,-1]=ustar[:,-3]
+	
 	
 def cl_phi(phi):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie et de l'objet"""
