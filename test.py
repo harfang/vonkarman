@@ -49,6 +49,8 @@ import scipy.sparse as sp
 dx = 1
 dy = 1
 
+Nx = 10
+Ny = 30
 
 def construction_matrice_laplacien_2D(Nx, Ny):
 	"""Construit et renvoie la matrice sparse du laplacien 2D"""
@@ -101,9 +103,10 @@ def construction_matrice_laplacien_2D(Nx, Ny):
 		
 	lap2D_sparse = sp.dia_matrix(dense_lap)
 	
-	return lap2D_sparse
+	return dense_lap
 	
-M = construction_matrice_laplacien_2D(4,3)
+M = construction_matrice_laplacien_2D(Nx,Ny)
 
-print(M.todense())
+U = np.ones(Nx*Ny)
+print(np.dot(M, U))
 
