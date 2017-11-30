@@ -29,8 +29,8 @@ import scipy.sparse as sp
 date_simulation = time.time()
 
 ## Definition des constantes
-Lx = 5.0
-Ly = 1.0
+Lx = 1.0
+Ly = 5.0
 
 # Taille des tableaux
 Nx = 10
@@ -54,7 +54,7 @@ Nt = 5
 pas_enregistrement = 1 #sauvegarde d'une image sur 30
 
 ## Conditions initiales
-u = np.zeros((Nx, Ny))
+u = np.ones((Nx, Ny))
 v = np.zeros((Nx, Ny))
 
 ## Définition de l'objet
@@ -123,7 +123,6 @@ def construction_matrice_laplacien_2D(nx, ny):
 	dy_2 = 1/(dy)**2
 	# Axe x
 	datax = [np.ones(nx), -2*np.ones(nx), np.ones(nx)]
-		
 	## Conditions aux limites : Neumann à gauche et Dirichlet à droite
 	datax[2][1]     = 2.  # SF left#
 	datax[0][nx-1] = 0  # SF right --> serait-ce le point fantome qui vérifie phi=0 sinon on ne peut pas calculer le laplacien au bord
@@ -142,7 +141,7 @@ def construction_matrice_laplacien_2D(nx, ny):
 	
 	DXX2 = DXX.todense()
 	DYY2 = DYY.todense()
-	
+	print(DXX2)
 #	DXX2[0,:] = np.zeros(DXX2[0,:].shape)
 #	DXX2[-1,:] = np.zeros(DXX2[-1,:].shape)
 
@@ -178,6 +177,7 @@ def cl_phi(phi):
 	phi[0,:]=phi[2,:]
 	phi[-1,:]=phi[-3,:]
 	phi[:,0]=phi[:,2]
+	phi[:,-1]=0	
 	#quelle est alors la valeur à mettre dans la dernière colonne ? on garde 0 ?
 	pass
 
@@ -281,6 +281,8 @@ for n in range(Nt):
 	print('difference entre ',np.max(np.abs(gradphi_x-ustar)+ np.abs(gradphi_y-vstar)))
 	u[1:-1,1:-1] = ustar[1:-1,1:-1] - gradphi_x[1:-1,1:-1]
 	v[1:-1,1:-1] = vstar[1:-1,1:-1] - gradphi_y[1:-1,1:-1]
+	cl_soufflerie(u,v)
+
 	print('vitesse maximale selon x =',np.max(np.abs(u)))
 	print('vitesse maximale selon y =',np.max(np.abs(v)))
 	#Fin du calcul
