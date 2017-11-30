@@ -111,42 +111,60 @@ def grad(f):
 	grad_f_y[:, 1:-1] = (f[:, 2:] - f[:, :-2])/(2*dy)
 	
 	return grad_f_x, grad_f_y
-def construction_matrice_laplacien_2D(nx, ny):
+	
+def construction_matrice_laplacien_2D(Nx, Ny):
 	"""Construit et renvoie la matrice sparse du laplacien 2D"""
 	dx_2 = 1/(dx)**2
 	dy_2 = 1/(dy)**2
-	# Axe x
-	datax = [np.ones(nx), -2*np.ones(nx), np.ones(nx)]
+	# Axe y
+	datax = [np.ones(Nx), -2*np.ones(Nx), np.ones(Nx)]
 		
-	## Conditions aux limites : Neumann à gauche et Dirichlet à droite
-	datax[2][1]     = 2.  # SF left#
-#	datax[0][nx-1] = 0  # SF right --> serait-ce le point fantome qui vérifie phi=0 sinon on ne peut pas calculer le laplacien au bord
+#	## Conditions aux limites : Neumann 
+#	datax[2][1]	 = 2.  # SF left
+#	datax[0][Nx-2] = 2.  # SF right
 
 #	# Axe Y
-	datay = [np.ones(ny), -2*np.ones(ny), np.ones(ny)] 
+	datay = [np.ones(Ny), -2*np.ones(Ny), np.ones(Ny)] 
 #	  
-	## Conditions aux limites : Neumann 
-	datay[2][1]     = 2.  # SF low
-	datay[0][ny-2] = 2.  # SF top
+#	## Conditions aux limites : Neumann 
+#	datay[2][1]	 = 2.  # SF low
+#	datay[0][Ny-2] = 2.  # SF top
 
 	# Construction de la matrice sparse
-	offsets = np.array([-1,0,1])                    
-	DXX = sp.dia_matrix((datax,offsets), shape=(nx,nx)) * dx_2
-	DYY = sp.dia_matrix((datay,offsets), shape=(ny,ny)) * dy_2
+	offsets = np.array([-1,0,1])			   
+	DXX = sp.dia_matrix((datax,offsets), shape=(Nx,Nx)) * dx_2
+	DYY = sp.dia_matrix((datay,offsets), shape=(Ny,Ny)) * dy_2
 	
-	DXX2 = DXX.todense()
-	DYY2 = DYY.todense()
+	lap2D = sp.kron(DXX, sp.eye(Ny,Ny)) + sp.kron(sp.eye(Nx,Nx), DYY) #sparse
 	
-#	DXX2[0,:] = np.zeros(DXX2[0,:].shape)
-#	DXX2[-1,:] = np.zeros(DXX2[-1,:].shape)
-
-#	DYY2[0,:] = np.zeros(DYY2[0,:].shape)
-#	DYY2[-1,:] = np.zeros(DYY2[-1,:].shape)
+	dense_lap = lap2D.todense()
 	
-	lap2D = sp.kron( DXX2, sp.eye(Ny,Ny)) + sp.kron( sp.eye(Nx,Nx), DYY2) #sparse
+	# CL
+	for j in range(Ny):
+		# CL en haut
+		dense_lap[j, :] = np.zeros((1, Nx*Ny))
+		dense_lap[j,j] = 1
+		dense_lap[j, 2*Ny+j] = -1
+		
+		# Cl en bas
+		dense_lap[j+Ny*(Nx-1), :] = np.zeros((1, Nx*Ny))
+		dense_lap[j+Ny*(Nx-1), j+Ny*(Nx-1)] = 1
+		dense_lap[j+Ny*(Nx-1), j+Ny*(Nx-3)] = -1
+		
+	for i in range(1, Nx-1):
+		# CL à gauche
+		dense_lap[Ny*i, :] = np.zeros((1, Nx*Ny))
+		dense_lap[Ny*i, Ny*i] = 1
+		dense_lap[Ny*i, Ny*i+2] = -1
+	 
+		# CL à droite
+		dense_lap[Ny*i+Ny-1, :]	= np.zeros((1, Nx*Ny))
+		dense_lap[Ny*i+Ny-1, Ny*i+Ny-1] = 1
+		
+	#lap2D_sparse = sp.dia_matrix(dense_lap)
 	
-	
-	return lap2D
+	#return lap2D_sparse
+	return dense_lap
 
 ## Laplacien 2D
 matrice_laplacien_2D = construction_matrice_laplacien_2D(Nx, Ny)	
@@ -283,7 +301,5 @@ for n in range(Nt):
 		plt.imshow(np.sqrt(phi[1:-1,1:-1]**2),origin='lower',cmap='bwr')
 		plt.colorbar()
 		plt.axis('image')
-plt.savefig("{}_{}_t={}.jpg".format(date_simulation, n, t_simu))
-
-
+		plt.savefig("{}_{}_t={}.jpg".format(date_simulation, n, t_simu))
 
