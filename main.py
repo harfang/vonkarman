@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -26,13 +28,13 @@ import scipy.sparse as sp
 
 date_simulation = time.time()
 
-## Définition des constantes
-Lx = 5
-Ly = 1
+## Definition des constantes
+Lx = 5.0
+Ly = 1.0
 
 # Taille des tableaux
-Nx = 60
-Ny = 100
+Nx = 10
+Ny = 15
 
 # Taille du domaine réel
 nx = Nx-2 # 2 points fantômes
@@ -48,11 +50,11 @@ r = 0.1 # dimension de l'obstacle
 if r > Ly or r > Lx:
 	print("ERREUR SUR r : r > Ly or r > Lx")
 
-Nt = 10
+Nt = 5
 pas_enregistrement = 1 #sauvegarde d'une image sur 30
 
 ## Conditions initiales
-u = np.ones((Nx, Ny))
+u = np.zeros((Nx, Ny))
 v = np.zeros((Nx, Ny))
 
 ## Définition de l'objet
@@ -70,12 +72,13 @@ for i in range(Nx):
 def condition_cfl(u, v, Re):
 	facteur_de_precaution_cfl = 0.7
 	#1. Advection
-	u_max = max(np.abs(u).max(), 0.0001)
-	v_max = max(np.abs(v).max(), 0.0001)
+#	u_max = max(np.abs(u).max(), 0.0001)
+#	v_max = max(np.abs(v).max(), 0.0001)
+	u_max =np.abs(u).max()
+	v_max = np.abs(v).max()
 	dt_adv = facteur_de_precaution_cfl * min(dx, dy)/max(u_max, v_max)
 
-	print("umax: {}".format(u_max))
-	print("vmax: {}".format(v_max))
+
 	#2. Diffusion
 	#u_min = min(np.abs(u).min(), 0.001)
 	#v_min = min(np.abs(v).min(), 0.001)
@@ -97,77 +100,62 @@ def laplacien(f):
 	return laplacien_f
 	
 def divergence(u, v):
-	"""Renvoie la divergence du champ de vecteurs (u, v). Schéma centré (ordre 2)."""
-	div = np.empty((Nx, Ny))
-	div[1:-1,1:-1] = ((u[1:-1, 2:] - u[1:-1, :-2])/(dx/2) +(v[2:, 1:-1] - v[:-2, 1:-1])/(dy/2))
-	return div
+	"""Renvoie la divergence du champ de vecteurs (u, v). Schéma centré (ordre 2). La taille de la matrice est nx*ny"""
+	div = np.empty((nx, ny))
+	div = ((u[1:-1, 2:] - u[1:-1, :-2])/(dx/2) +(v[2:, 1:-1] - v[:-2, 1:-1])/(dy/2))
+	return( div)
 	
 def grad(f):
 	"""Renvoie le gradient de f. Schéma centré (ordre 2)."""
 	grad_f_x = np.empty((Nx, Ny))
 	grad_f_y = np.empty((Nx, Ny))
 	
-	grad_f_x[1:-1, :] = (f[2:, :] - f[:-2, :])/(2*dx)
-	grad_f_y[:, 1:-1] = (f[:, 2:] - f[:, :-2])/(2*dy)
-	
+	grad_f_y[1:-1, :] = (f[2:, :] - f[:-2, :])/(2*dy)
+	grad_f_x[:, 1:-1] = (f[:, 2:] - f[:, :-2])/(2*dx)
+#	grad_f_y[1:-1, 1:-1] = (f[2:, 1:-1] - f[:-2, 1:-1])/(2*dy)
+#	grad_f_x[1:-1, 1:-1] = (f[1:-1, 2:] - f[1:-1, :-2])/(2*dx)
 	return grad_f_x, grad_f_y
-	
-def construction_matrice_laplacien_2D(Nx, Ny):
+
+
+def construction_matrice_laplacien_2D(nx, ny):
 	"""Construit et renvoie la matrice sparse du laplacien 2D"""
 	dx_2 = 1/(dx)**2
 	dy_2 = 1/(dy)**2
-	# Axe y
-	datax = [np.ones(Nx), -2*np.ones(Nx), np.ones(Nx)]
+	# Axe x
+	datax = [np.ones(nx), -2*np.ones(nx), np.ones(nx)]
 		
-#	## Conditions aux limites : Neumann 
-#	datax[2][1]	 = 2.  # SF left
-#	datax[0][Nx-2] = 2.  # SF right
+	## Conditions aux limites : Neumann à gauche et Dirichlet à droite
+	datax[2][1]     = 2.  # SF left#
+	datax[0][nx-1] = 0  # SF right --> serait-ce le point fantome qui vérifie phi=0 sinon on ne peut pas calculer le laplacien au bord
 
 #	# Axe Y
-	datay = [np.ones(Ny), -2*np.ones(Ny), np.ones(Ny)] 
+	datay = [np.ones(ny), -2*np.ones(ny), np.ones(ny)] 
 #	  
-#	## Conditions aux limites : Neumann 
-#	datay[2][1]	 = 2.  # SF low
-#	datay[0][Ny-2] = 2.  # SF top
+	## Conditions aux limites : Neumann 
+	datay[2][1]     = 2.  # SF low
+	datay[0][ny-2] = 2.  # SF top
 
 	# Construction de la matrice sparse
-	offsets = np.array([-1,0,1])			   
-	DXX = sp.dia_matrix((datax,offsets), shape=(Nx,Nx)) * dx_2
-	DYY = sp.dia_matrix((datay,offsets), shape=(Ny,Ny)) * dy_2
+	offsets = np.array([-1,0,1])                    
+	DXX = sp.dia_matrix((datax,offsets), shape=(nx,nx)) * dx_2
+	DYY = sp.dia_matrix((datay,offsets), shape=(ny,ny)) * dy_2
 	
-	lap2D = sp.kron(DXX, sp.eye(Ny,Ny)) + sp.kron(sp.eye(Nx,Nx), DYY) #sparse
+	DXX2 = DXX.todense()
+	DYY2 = DYY.todense()
 	
-	dense_lap = lap2D.todense()
+#	DXX2[0,:] = np.zeros(DXX2[0,:].shape)
+#	DXX2[-1,:] = np.zeros(DXX2[-1,:].shape)
+
+#	DYY2[0,:] = np.zeros(DYY2[0,:].shape)
+#	DYY2[-1,:] = np.zeros(DYY2[-1,:].shape)
 	
-	# CL
-	for j in range(Ny):
-		# CL en haut
-		dense_lap[j, :] = np.zeros((1, Nx*Ny))
-		dense_lap[j,j] = 1
-		dense_lap[j, 2*Ny+j] = -1
-		
-		# Cl en bas
-		dense_lap[j+Ny*(Nx-1), :] = np.zeros((1, Nx*Ny))
-		dense_lap[j+Ny*(Nx-1), j+Ny*(Nx-1)] = 1
-		dense_lap[j+Ny*(Nx-1), j+Ny*(Nx-3)] = -1
-		
-	for i in range(1, Nx-1):
-		# CL à gauche
-		dense_lap[Ny*i, :] = np.zeros((1, Nx*Ny))
-		dense_lap[Ny*i, Ny*i] = 1
-		dense_lap[Ny*i, Ny*i+2] = -1
-	 
-		# CL à droite
-		dense_lap[Ny*i+Ny-1, :]	= np.zeros((1, Nx*Ny))
-		dense_lap[Ny*i+Ny-1, Ny*i+Ny-1] = 1
-		
-	#lap2D_sparse = sp.dia_matrix(dense_lap)
+	lap2D = sp.kron( DXX2, sp.eye(ny,ny)) + sp.kron( sp.eye(nx,nx), DYY2) #sparse
 	
-	#return lap2D_sparse
-	return dense_lap
+	
+	return lap2D.todense()
 
 ## Laplacien 2D
-matrice_laplacien_2D = construction_matrice_laplacien_2D(Nx, Ny)	
+matrice_laplacien_2D = construction_matrice_laplacien_2D(nx, ny)	
 	
 def cl_objet(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la vitesse autour de l'objet"""
@@ -187,20 +175,21 @@ def cl_soufflerie(ustar, vstar):
 	
 def cl_phi(phi):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de l'objet"""
+	phi[0,:]=phi[2,:]
+	phi[-1,:]=phi[-3,:]
+	phi[:,0]=phi[:,2]
+	#quelle est alors la valeur à mettre dans la dernière colonne ? on garde 0 ?
 	pass
 
-def solve_laplacien(div, cl_phi):
-	"""Renvoie phi telle que laplacien(phi) = div, avec les conditions aux limites données par cl_phi (cl_phi travaille directement sur les tableaux)."""
+def solve_laplacien(div):
+	"""Renvoie phi telle que laplacien(phi) = div, avec les conditions aux limites données par cl_phi (cl_phi travaille directement sur les tableaux). La taille de div est nx*ny, celle de lapacien son carré"""
 	
-	div[0,:] = np.zeros(Ny)
-	div[-1,:] = np.zeros(Ny)
-	div[:,0] = np.zeros(Nx)
-	div[:,-1] = np.zeros(Nx)
-	
+
 	div_flat = div.flatten()
-	
 	phi_flat = np.linalg.solve(matrice_laplacien_2D, div_flat)
-	phi = phi_flat.reshape((Nx, Ny))
+	phi=np.zeros((Nx,Ny))
+	print('Le max de phi est ',np.max(np.abs(phi_flat)))
+	phi[1:-1,1:-1] = phi_flat.reshape((nx, ny))
 	cl_phi(phi)
 	
 	return phi
@@ -256,20 +245,23 @@ def calcul_a_conv(u, v):
 	return Resu, Resv
 
 t_simu = 0
-
+print('t_simu=',t_simu)
+print('vitesse maximale selon x =',np.max(np.abs(u)))
+print('vitesse maximale selon y =',np.max(np.abs(v)))
 ## Boucle principale
 for n in range(Nt):
 
 	#Calcul du nouveau dt pour respecter les conditions CFL
 	dt = condition_cfl(u, v, Re)
-	print(dt)
-	print(t_simu)
+	print('dt=',dt)
+	print('t_simu=',t_simu+dt)
 	#Calcul de l'accélération convective
 	a_conv_u, a_conv_v = calcul_a_conv(u, v)
-	
+	ustar=np.zeros((Nx,Ny))
+	vstar=np.zeros((Nx,Ny))
 	#Navier-Stokes
-	ustar = u + dt*(-a_conv_u + (1/Re)*laplacien(u))
-	vstar = v + dt*(-a_conv_v + (1/Re)*laplacien(v))
+	ustar[1:-1,1:-1] = u[1:-1,1:-1] + dt*(-a_conv_u[1:-1,1:-1] + (1/Re)*laplacien(u)[1:-1,1:-1])
+	vstar[1:-1,1:-1] = v[1:-1,1:-1] + dt*(-a_conv_v[1:-1,1:-1] + (1/Re)*laplacien(v)[1:-1,1:-1])
 	
 	#Conditions aux limites
 	## Soufflerie numérique
@@ -279,17 +271,18 @@ for n in range(Nt):
 	
 	#Projection
 	divstar = divergence(ustar, vstar)
-	phi = solve_laplacien(divstar, cl_phi)
+	phi = solve_laplacien(divstar)
 	gradphi_x, gradphi_y = grad(phi) # code optimisable en réduisant le nombre de variables
 	
-	print(np.max(np.abs(ustar)))
-	print(np.max(np.abs(vstar)))
-	print(np.max(np.abs(gradphi_x)))
-	print(np.max(np.abs(gradphi_y)))
-	
-	u = ustar - gradphi_x
-	v = vstar - gradphi_y
-	
+	print('vitesse maximale star selon x =',np.max(np.abs(ustar)), 'situe en', np.where(np.max(np.abs(ustar) == np.abs(ustar)))[0])
+	print('vitesse maximale star selon y =',np.max(np.abs(vstar)),'situe en', np.where(np.max(np.abs(vstar) == np.abs(vstar)))[0][0])
+	print('Le maximum du gradient de phi est selon x', np.max(np.abs(gradphi_x[1:-1,1:-1])))
+	print('Le maximum du gradient de phi est selon y', np.max(np.abs(gradphi_y)))
+	print('difference entre ',np.max(np.abs(gradphi_x-ustar)+ np.abs(gradphi_y-vstar)))
+	u[1:-1,1:-1] = ustar[1:-1,1:-1] - gradphi_x[1:-1,1:-1]
+	v[1:-1,1:-1] = vstar[1:-1,1:-1] - gradphi_y[1:-1,1:-1]
+	print('vitesse maximale selon x =',np.max(np.abs(u)))
+	print('vitesse maximale selon y =',np.max(np.abs(v)))
 	#Fin du calcul
 	t_simu += dt
 	
@@ -298,8 +291,11 @@ for n in range(Nt):
 	if n%pas_enregistrement == 0:
 		plt.clf()
 		#plt.imshow(np.sqrt(u[1:-1,1:-1]**2+v[1:-1,1:-1]**2),origin='lower',cmap='bwr')
-		plt.imshow(np.sqrt(phi[1:-1,1:-1]**2),origin='lower',cmap='bwr')
+		plt.imshow(np.sqrt(u[1:-1,1:-1]**2),origin='lower',cmap='bwr')
 		plt.colorbar()
 		plt.axis('image')
-		plt.savefig("{}_{}_t={}.jpg".format(date_simulation, n, t_simu))
+		plt.savefig("{}_t={}.jpg".format( n+1, t_simu))
+
+
+
 
