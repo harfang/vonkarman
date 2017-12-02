@@ -62,11 +62,11 @@ Plan du code :
 
 ## Definition des constantes
 Lx = 5.0
-Ly = 1.0
+Ly = 3.0
 
 # Taille des tableaux
 Nx = 30
-Ny = 10
+Ny = 20
 
 # Taille du domaine réel
 nx = Nx-2 # 2 points fantômes
@@ -83,7 +83,7 @@ r = 0.2 # dimension de l'obstacle
 if 4*r > Ly or 10*r > Lx:
 	print("ERREUR SUR r : r > Ly or r > Lx")
 	
-Nt = 200 #durée de la simulation
+Nt = 250 #durée de la simulation
 pas_enregistrement = 5 #sauvegarde d'une image sur pas_enregistrement
 
 
@@ -96,14 +96,11 @@ v = np.zeros((Ny, Nx))
 #On place le centre de l'objet en (5r, Ly/2)
 #la matrice objet renvoie une matrice pleine de 0 là où il y a l'objet et pleine de 1 là où il n'y est pas
 objet=np.ones((Ny,Nx))
-for i in range(Ny): #A revoir !!!!!
+for i in range(Ny): 
 	for j in range(Nx):
 		if (j*dx-5*r)**2+(i*dy-0.5*(Ly+2*dy))**2 < r**2:
 			objet[i][j]=0
 
-plt.imshow(objet,origin='lower',cmap='bwr')
-plt.draw()
-plt.pause(2)
 
 
 
@@ -320,13 +317,6 @@ def solve_laplacien(div):
 matrice_laplacien_2D = construction_matrice_laplacien_2D(nx, ny)	
 t_simu = 0
 
-#On enregistre la première image de la simulation
-
-plt.imshow(np.sqrt(u[1:-1,1:-1]**2+v[1:-1,1:-1]**2),origin='lower',cmap='bwr')
-#plt.imshow(np.sqrt(u[1:-1,1:-1]**2),origin='lower',cmap='bwr')
-plt.colorbar()
-plt.axis('image')
-plt.savefig("{}_t={}.jpg".format(0, t_simu))
 
 ## Boucle principale
 for n in range(Nt):
@@ -366,17 +356,16 @@ for n in range(Nt):
 	if n%pas_enregistrement == 0:
 		print(n,'sur',Nt)
 		plt.clf()
-		#plt.imshow(np.sqrt(u[1:-1,1:-1]**2+v[1:-1,1:-1]**2),origin='lower',cmap='bwr')
-		plt.imshow(np.sqrt(u[1:-1,1:-1]**2),origin='lower',cmap='bwr')
-		plt.show()
+		plt.imshow(np.sqrt(u[1:-1,1:-1]**2+v[1:-1,1:-1]**2),origin='lower',cmap='bwr')
+		#plt.imshow(np.sqrt(u[1:-1,1:-1]**2),origin='lower',cmap='bwr')
 		plt.colorbar()
 		plt.axis('image')
 		if n<10:		
-			plt.savefig("000{}_t={}.jpg".format( n+1, t_simu))
+			plt.savefig("Re={}image000{}_t={}.jpg".format(Re, n+1, t_simu))
 		elif n<100:
-			plt.savefig("00{}_t={}.jpg".format( n+1, t_simu))
+			plt.savefig("Re={}image00{}_t={}.jpg".format(Re, n+1, t_simu))
 		elif n<1000:
-			plt.savefig("0{}_t={}.jpg".format( n+1, t_simu))
+			plt.savefig("Re={}image0{}_t={}.jpg".format( Re,n+1, t_simu))
 		else:
-			plt.savefig("{}_t={}.jpg".format( n+1, t_simu))
+			plt.savefig("Re={}image{}_t={}.jpg".format( Re, n+1, t_simu))
 
