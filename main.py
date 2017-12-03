@@ -32,6 +32,8 @@ import scipy.sparse as sp
 
 Plan du code :
 	définition des constantes et des objets globaux
+		paramètres rentrés par l'utilisateur
+		constantes pour la machine
 	Les opérateurs basiques :
 		gradient(scalaire Ny,Nx) --> renvoie un objet de taille Ny*Nx MAIS NE PAS USER LES GHOSTS POINTS
 		divergence (U,V de taille Ny,Nx) --> renvoie un objet de taille Ny*Nx MAIS NE PAS USER LES GHOST POINTS
@@ -46,16 +48,53 @@ Plan du code :
 		accélération covective
 		construction de la matrice laplacien
 		résolution de l'équation de Poisson
+	Fonctions annexes
+		Suivi du colorant
 """
 
 
-## Definition des constantes
-Lx = 1.0
-Ly = 5.0
 
-# Taille des tableaux
-Nx = 10
-Ny = 15
+"""
+---------------------------------------------------------------------------------
+|										|
+|				CONSTANTES ET OBJETS				|
+|										|
+---------------------------------------------------------------------------------
+"""
+
+"""
+ -----> Paramètres utilisateur <-----
+"""
+
+## Definition de la taille du domaine
+Lx = 5.0
+Ly = 3.0
+
+# Nombre de points de la grille
+Nx = 30
+Ny = 20
+
+# Dimensions de l'objet (attention 5r<Ly et 10r<Lx pour lbisser l'écoulement )
+r = 0.2 
+
+# Nombre de Reynolds
+Re = 100
+
+#Nombre d'itérations de la simulation
+Nt = 250
+#sauvegarde d'une image sur pas_enregistrement
+pas_enregistrement = 5 
+
+#Pour observer les lignes de courant, on met du colorant.
+#Rentrer les coordonnées du point où celui-ci est injecté
+Y_colo_ini,X_colo_ini=Ny//3, 1
+#Rentrer le temps à partir duquel on met du colorant (si on attends l'état stationnaire) --> entier
+t_ini_colo= 30
+
+
+"""
+ -----> Paramètres machine <-----
+"""
 
 # Taille du domaine réel
 nx = Nx-2 # 2 points fantômes
@@ -66,17 +105,27 @@ dx = Lx/(nx-1)
 dy = Ly/(ny-1)
 
 
-# Constantes physiques
-Re = 100
-r = 0.1 # dimension de l'obstacle
-if r > Ly or r > Lx:
+colorant=[[Y_colo_ini,X_colo_ini]]
+
+if 4*r > Ly or 10*r > Lx:
 	print("ERREUR SUR r : r > Ly or r > Lx")
 	
-Nt = 5 #durée de la simulation
-pas_enregistrement = 1 #sauvegarde d'une image sur pas_enregistrement
+
+
+## Conditions initiales
+u = np.zeros((Ny, Nx))
+v = np.zeros((Ny, Nx))
 
 #Définition de l'objet 
-#A FAIRE !!! matrice pleine de 1 là où il est et pleine de zéros là où il n'y est pas
+## Définition de l'objet
+#On place le centre de l'objet en (5r, Ly/2)
+#la matrice objet renvoie une matrice pleine de 0 là où il y a l'objet et pleine de 1 là où il n'y est pas
+objet=np.ones((Ny,Nx))
+for i in range(Ny): 
+	for j in range(Nx):
+		if (j*dx-5*r)**2+(i*dy-0.5*(Ly+2*dy))**2 < r**2:
+			objet[i][j]=0
+
 
 
 
@@ -151,9 +200,13 @@ def cl_soufflerie(ustar, vstar):
 	vstar[Ny-2:, :] = 0 #en bas, la vitesse normale est nulle
 	ustar[:, Nx-1] = ustar[:, Nx-3] #dérivée de u par rapport à x nulle à la sortie
 	vstar[:, Nx-1] = vstar[:, Nx-3] #dérivée de v par rapport à x nulle à la sortie
+#	ustar[Ny//2,:2]=3
+#	ustar[Ny//2+1,:2]=3
 	
 def cl_objet(ustar, vstar):
 	"""Modifie les tableaux pour satifsaire les conditions aux limites de la vitesse autour de l'objet"""
+	ustar*=objet
+	vstar*=objet
 	pass
 
 def cl_phi(phi):
@@ -190,10 +243,11 @@ def points_fantome_vitesse(u,v):
 
 def calcul_a_conv(u, v):
 	"""Calcul l'accélération convective u grad u"""
-	
+	#problème : il utilise une autre convention que la notre c'est-à-dire que pour lui x est le premier indice. 
+
 	Resu = np.empty((Ny, Nx))
 	Resv = np.empty((Ny, Nx))
-	
+
 	# Matrice avec des 1 quand on va a droite, 
 	# 0 a gauche ou au centre
 	Mx2 = np.sign(np.sign(u[1:-1,1:-1]) + 1)
@@ -205,10 +259,10 @@ def calcul_a_conv(u, v):
 	My1 = 1. - My2
 
 	# Matrices en valeurs absolues pour u et v
-	au = abs(u[1:-1,1:-1]) /dx 
-	av = abs(v[1:-1,1:-1]) /dy
+	au = abs(u[1:-1,1:-1])*dt/dx 
+	av = abs(v[1:-1,1:-1])*dt/dy
 
-	# Matrices des coefficients respectivement 
+	# Matrices des coefficients qui va pondérer la vitesse des points respectivement
 	# central, exterieur, meme x, meme y	 
 	Cc = (1. - au) * (1. - av) 
 	Ce = au * av
@@ -258,20 +312,116 @@ def construction_matrice_laplacien_2D(nx, ny):
 	## Conditions aux limites : Neumann 
 	DYY2[0,1]     = 2.   # en haut
 	DYY2[-1, ny-2] = 2.  # en bas
-	lap2D = sp.kron( sp.eye(Ny,Ny) , DXX2 ) + sp.kron(DYY2, sp.eye(Nx,Nx)) #sparse
+	lap2D = sp.kron( sp.eye(ny,ny) , DXX2 ) + sp.kron(DYY2, sp.eye(nx,nx)) #sparse
 	return lap2D.todense()
 	
 def solve_laplacien(div):
 	"""Renvoie phi telle que laplacien(phi) = div, avec les conditions aux limites données par cl_phi (cl_phi travaille directement sur les tableaux). La taille de div est nx*ny, celle de lapacien son carré"""
 	div_flat = div.flatten()
 	phi_flat = np.linalg.solve(matrice_laplacien_2D, div_flat)
-	phi=np.zeros((Nx,Ny))
-	print('Le max de phi est ',np.max(np.abs(phi_flat)))
-	phi[1:-1,1:-1] = phi_flat.reshape((nx, ny))
+	phi=np.zeros((Ny,Nx))
+	phi[1:-1,1:-1] = phi_flat.reshape((ny,nx))
 	cl_phi(phi)
 	return phi
 
 
+
+"""
+---------------------------------------------------------------------------------
+|										|
+|				LES FONCTIONS ANNEXES				|
+|										|
+---------------------------------------------------------------------------------
+"""
+
+def mise_a_jour_colorant():
+	"""Cette fonction met à jour la position de chaque particule de colorant 
+	en calculant sa vitesse et donc sa position en t+dt. Colorant est une liste attention !!"""
+	global colorant
+	retrait=[]
+	for n in range(len(colorant)):
+		i = int(colorant[n][0])
+		j = int(colorant[n][1])
+			if j > nx-2:
+				retrait.append(n)
+			else:
+			deltai = colorant[n][0]-i
+			deltaj = colorant[n][1]-j
+			colorant[n][0]+=dt*((1-deltai)*(1-deltaj)*v[i,j]+(1-deltaj)*deltai*v[i+1,j]+deltaj*(1-deltai)*v[i,j+1]+deltai*deltaj*v[i+1,j+1])
+			colorant[n][1]+=dt*((1-deltai)*(1-deltaj)*u[i,j]+(1-deltaj)*deltai*u[i+1,j]+deltaj*(1-deltai)*u[i,j+1]+deltai*deltaj*u[i+1,j+1])
+	for k in retrait:
+		colorant.pop(k)
+	colorant.append([Y_colo_ini,X_colo_ini])
+
+def mise_a_jour_grille_colorant():
+	""" on met des 0 là où est l'objet, des 1 où est le fluide et des 2 là où est le colorant"""
+	global grille_colorant
+	grille_colorant=objet
+	for n in range(colorant):
+		grille_colorant[int(round(colorant[n][0]))][int(round(colorant[n][1]))]
+
+"""
+---------------------------------------------------------------------------------
+|										|
+|				BOUCLE PRINCIPALE				|
+|										|
+---------------------------------------------------------------------------------
+"""
+
+
+#On calcule la matrice du laplacien en 2D (on va quand même pas le faire 1000 fois...)
 matrice_laplacien_2D = construction_matrice_laplacien_2D(nx, ny)	
+t_simu = 0
 
 
+## Boucle principale
+for n in range(Nt):
+
+	#Calcul du nouveau dt pour respecter les conditions CFL
+	dt = condition_cfl(u, v, Re)
+	#Calcul de l'accélération convective
+	Resu, Resv = calcul_a_conv(u, v)
+	ustar=np.zeros((Ny,Nx))
+	vstar=np.zeros((Ny,Nx))
+	#Navier-Stokes
+	ustar[1:-1,1:-1] = Resu[1:-1,1:-1]+dt*laplacien(u)[1:-1,1:-1]/Re
+	vstar[1:-1,1:-1] = Resv[1:-1,1:-1]+dt*laplacien(v)[1:-1,1:-1]/Re
+	
+	#Conditions aux limites
+	## Soufflerie numérique
+	cl_soufflerie(ustar, vstar)
+	## Bords de l'objet
+	cl_objet(ustar, vstar)
+	
+	#Projection
+	divstar = divergence(ustar, vstar)
+	phi = solve_laplacien(divstar[1:-1,1:-1])
+	gradphi_x, gradphi_y = grad(phi) # code optimisable en réduisant le nombre de variables
+	
+
+	u[1:-1,1:-1] = ustar[1:-1,1:-1] - gradphi_x[1:-1,1:-1]
+	v[1:-1,1:-1] = vstar[1:-1,1:-1] - gradphi_y[1:-1,1:-1]
+	cl_soufflerie(u,v)
+
+	if n>t_ini_colo:
+		mise_a_jour_colorant()
+	#Fin du calcul
+	t_simu += dt
+	
+	## Affichage
+		# Premier script : enregistrement d'une image sur pas_enregistrement
+	if n%pas_enregistrement == 0:
+		print(n,'sur',Nt)
+		plt.clf()
+		plt.imshow(np.sqrt(u[1:-1,1:-1]**2+v[1:-1,1:-1]**2),origin='lower',cmap='bwr')
+		#plt.imshow(np.sqrt(u[1:-1,1:-1]**2),origin='lower',cmap='bwr')
+		plt.colorbar()
+		plt.axis('image')
+		if n<10:		
+			plt.savefig("Re={}image000{}_t={}.jpg".format(Re, n+1, t_simu))
+		elif n<100:
+			plt.savefig("Re={}image00{}_t={}.jpg".format(Re, n+1, t_simu))
+		elif n<1000:
+			plt.savefig("Re={}image0{}_t={}.jpg".format( Re,n+1, t_simu))
+		else:
+			plt.savefig("Re={}image{}_t={}.jpg".format( Re, n+1, t_simu))
