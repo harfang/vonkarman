@@ -216,16 +216,15 @@ class VonKarman():
 
 	def cl_soufflerie(self):
 		"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie"""
-		self.ustar[:, 0] = 1 #la vitesse est de 1 en entrée
 		self.ustar[:, 1] = 1 #la vitesse est de 1 en entrée
-		self.vstar[:, :2] = 0 #la vitesse v est nulle en entrée
+		self.vstar[:, 1] = 0 #la vitesse v est nulle en entrée
 		self.ustar[0,1:-1]= self.ustar[2,1:-1] #en haut la contrainte est nulle
 		self.vstar[:2, :] = 0 #en haut, la vitesse normale est nulle
 		self.ustar[-1,1:-1]= self.ustar[-3,1:-1] #en bas la contrainte est nulle
 		self.vstar[self.Ny-2:, :] = 0 #en bas, la vitesse normale est nulle
-		self.ustar[:, self.Nx-1] = self.ustar[:, self.Nx-3] #dérivée de u par rapport à x nulle à la sortie
-		self.vstar[:, self.Nx-1] = self.vstar[:, self.Nx-3] #dérivée de v par rapport à x nulle à la sortie
-	#	ustar[Ny//2,:2]=3
+		self.ustar[:, self.Nx-1] = self.ustar[:, self.Nx-2] #dérivée de u par rapport à x nulle à la sortie -2 ou -3 ?
+		self.vstar[:, self.Nx-1] = self.vstar[:, self.Nx-2] #dérivée de v par rapport à x nulle à la sortie
+	#	ustar[Ny//2,:2]=
 	#	ustar[Ny//2+1,:2]=3
 	
 	def cl_objet(self):
@@ -239,18 +238,18 @@ class VonKarman():
 		self.phi[0,:] = self.phi[2,:]
 		self.phi[-1,:] = self.phi[-3,:]
 		self.phi[:,0] = self.phi[:,2]
-		self.phi[:,-1] = 0
+		self.phi[:,-1] = -self.phi[:,-2]
 		#quelle est alors la valeur à mettre dans la dernière colonne ? on garde 0 ?
 
 	def points_fantome_vitesse(self, u, v):
-		u[:, 0] = 1 #la vitesse est de 1 en entrée
-		v[:, 0] = 0 #la vitesse v est nulle en entrée
-		u[0,:]= u[2,:] #en haut la contrainte est nulle
+		u[:, 0] = 2 - u[:, 2] #la vitesse est de 1 en entrée
+		v[:, 0] = -v[:, 2] #la vitesse v est nulle en entrée
+		u[0, :] = u[2, :] #en haut la contrainte est nulle
 		v[0, :] = 0 #en haut, la vitesse normale est nulle
-		u[-1,:]= u[-3,:] #en haut la contrainte est nulle
+		u[-1,:] = u[-3,:] #en haut la contrainte est nulle
 		v[-1, :] = 0 #en bas, la vitesse normale est nulle
-		u[:, self.Nx-1] = u[:, self.Nx-3] #dérivée de u par rapport à x nulle à la sortie
-		v[:, self.Nx-1] = v[:, self.Nx-3] #dérivée de v par rapport à x nulle à la sortie
+		u[:, -1] = u[:, -2] #dérivée de u par rapport à x nulle à la sortie
+		v[:, -1] = v[:, -2] #dérivée de v par rapport à x nulle à la sortie
 
 	"""
 	---------------------------------------------------------------------------------
@@ -322,15 +321,15 @@ class VonKarman():
 		DXX = sp.dia_matrix((datax,offsets), shape=(self.nx,self.nx)) * dx_2
 		DXX2 = DXX.todense()
 		## Conditions aux limites : Neumann à gauche et Dirichlet à droite
-		DXX2[0,1]     = 2.  # SF left : au lieu d'un 1 on met un 2 à la deuxième colonne première ligne
-		DXX2[0,-1] = 0  # SF right 
+		DXX2[0,1]     = 2.*dx_2  # SF left : au lieu d'un 1 on met un 2 à la deuxième colonne première ligne
+		DXX2[-1,-1] = -3*dx_2  # SF right 0 ou -1 ???
 		# Axe Y
 		datay = [np.ones(self.ny), -2*np.ones(self.ny), np.ones(self.ny)] 
 		DYY = sp.dia_matrix((datay,offsets), shape=(self.ny,self.ny)) * dy_2	
 		DYY2 = DYY.todense()  
 		## Conditions aux limites : Neumann 
-		DYY2[0,1]     = 2.   # en haut
-		DYY2[-1, self.ny-2] = 2.  # en bas
+		DYY2[0,1]     = 2.*dy_2  # en haut
+		DYY2[-1, self.ny-2] = 2.*dy_2  # en bas
 		self.matrice_laplacien_2D = sp.kron(sp.eye(self.ny, self.ny), DXX2) + sp.kron(DYY2, sp.eye(self.nx, self.nx)) #sparse
 		#self.matrice_laplacien_2D = lap2D.todense()
 	
@@ -373,22 +372,22 @@ class VonKarman():
 			self.cl_soufflerie()
 			## Bords de l'objet
 			#self.cl_objet()
+			
+			# Mise à jour des points fantomes
+			self.points_fantome_vitesse(self.ustar, self.vstar)
 	
 			#Projection
 			divstar = self.divergence(self.ustar, self.vstar)
 			self.solve_laplacien(divstar[1:-1,1:-1])
+			self.cl_phi()
 			gradphi_x, gradphi_y = self.grad(self.phi) # code optimisable en réduisant le nombre de variables
 	
 			self.u[1:-1,1:-1] = self.ustar[1:-1,1:-1] - gradphi_x[1:-1,1:-1]
 			self.v[1:-1,1:-1] = self.vstar[1:-1,1:-1] - gradphi_y[1:-1,1:-1]
-
-			
-			# Mise à jour des points fantomes
-			self.points_fantome_vitesse(self.u, self.v)
-			self.points_fantome_vitesse(self.ustar, self.vstar)
 			
 			#Fin du calcul
 			t_simu += self.dt
+			self.points_fantome_vitesse(self.u, self.v)
 	
 			## Affichage
 				# Premier script : enregistrement d'une image sur pas_enregistrement
@@ -396,11 +395,11 @@ class VonKarman():
 				print(n, 'sur', self.Nt)
 				plt.clf()
 				#plt.imshow(1-objet[1:-1,1:-1], origin = 'lower', cmap='binary', alpha = 0.)
-				#x = 0
-				#plt.plot(self.u[:,x], color="blue", label="u")
-				#plt.plot(self.v[:,x], color="green", label="v")
-				#plt.legend(loc="best")
-				## Affichage de la norme de la vitesse
+#				x = 4
+#				plt.plot(self.u[:,x], color="blue", label="u")
+#				plt.plot(self.v[:,x], color="green", label="v")
+#				plt.legend(loc="best")
+				# Affichage de la norme de la vitesse
 				plt.imshow(np.sqrt(self.u[1:-1,1:-1]**2+self.v[1:-1,1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none', norm = self.color_norm)
 			
 				## Affichage de la vorticité
@@ -412,13 +411,13 @@ class VonKarman():
 
 				plt.axis('image')
 				if n<10:		
-					plt.savefig("image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 60)
+					plt.savefig("image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 72)
 				elif n<100:
-					plt.savefig("image00{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 60)
+					plt.savefig("image00{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 72)
 				elif n<1000:
-					plt.savefig("image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 60)
+					plt.savefig("image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 72)
 				else:
-					plt.savefig("image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 60)
+					plt.savefig("image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 72)
 			
 				self.command_string += "\\( -clone {} -set delay {} \\) -swap {} +delete \\\n".format(n//self.pas_enregistrement, (t_simu-t_simu_precedemment_enregistre)*10, n//self.pas_enregistrement)
 				t_simu_precedemment_enregistre = t_simu
