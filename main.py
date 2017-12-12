@@ -63,7 +63,7 @@ Plan du code :
 
 class VonKarman():
 
-	def __init__(self, Lx = 30.0, Ly = 7.0, Nx = 150, Ny=35, Nt=1200, r = 0.35, Re = 100, pas_enregistrement = 5, tau = 1):
+	def __init__(self, Lx = 30.0, Ly = 7.0, Nx = 150, Ny=35, Nt=1200, r = 0.35, Re = 100, pas_enregistrement = 5):
 		## Definition des constantes
 		self.Lx = Lx
 		self.Ly = Ly
@@ -75,7 +75,7 @@ class VonKarman():
 		# Taille du domaine réel
 		self.nx = self.Nx-2 # 2 points fantômes
 		self.ny = self.Ny-2
-
+		
 		# Pas
 		self.dx = self.Lx/(self.nx-1)
 		self.dy = self.Ly/(self.ny-1)
@@ -97,8 +97,6 @@ class VonKarman():
 		self.ustar = np.zeros((self.Ny, self.Nx))
 		self.vstar = np.zeros((self.Ny, self.Nx))
 		
-		self.u0 = 0
-		
 		#debug
 		"""
 		list_x = self.dx*np.arange(self.Nx)
@@ -110,7 +108,6 @@ class VonKarman():
 		plt.axis('image')
 		plt.savefig("image0000.jpg", dpi = 300)
 		"""
-		self.tau = tau
 		
 		#Définition de l'objet 
 		## Définition de l'objet
@@ -228,7 +225,7 @@ class VonKarman():
 		dt_adv = facteur_de_precaution_cfl * min(self.dx, self.dy)/max(u_max, v_max, 1)
 
 		#2. Diffusion
-		dt_diffusion = self.Re*min(self.dx**2, self.dy**2)
+		dt_diffusion = facteur_de_precaution_cfl * self.Re*min(self.dx**2, self.dy**2)/4
 	
 		#3. min
 		dt_min = min(dt_diffusion, dt_adv)
@@ -391,7 +388,7 @@ class VonKarman():
 			## Soufflerie numérique
 			self.cl_soufflerie()
 			## Bords de l'objet
-			#self.cl_objet()
+			self.cl_objet()
 			
 			# Mise à jour des points fantomes
 			self.points_fantome_vitesse(self.ustar, self.vstar)
@@ -401,7 +398,14 @@ class VonKarman():
 			self.solve_laplacien(divstar[1:-1,1:-1])
 			self.cl_phi()
 			gradphi_x, gradphi_y = self.grad(self.phi) # code optimisable en réduisant le nombre de variables
-
+			
+#			print("u")
+#			print(self.u)
+#			print("phi")
+#			print(self.phi)
+#			print("divstar")
+#			print(divstar)
+			
 			self.u[1:-1, 1:-1] = self.ustar[1:-1, 1:-1] - gradphi_x[1:-1, 1:-1]
 			self.v[1:-1, 1:-1] = self.vstar[1:-1, 1:-1] - gradphi_y[1:-1, 1:-1]
 
@@ -411,25 +415,27 @@ class VonKarman():
 	
 			## Affichage
 				# Premier script : enregistrement d'une image sur pas_enregistrement
+			
 			if n%self.pas_enregistrement == 0:
 				print(n, 'sur', self.Nt)
 				plt.clf()
-				plt.plot(self.ustar[53,:20], color="blue", label="ustar", linewidth=1)
-				plt.plot(self.u[53,:20], color="green", label="u", linewidth=1)
-				plt.plot(gradphi_x[53,:20], color="red", label="graphix", linewidth=1)
-				plt.legend(loc="best")
+				#plt.plot(self.ustar[53,-20:], color="blue", label="ustar", linewidth=1)
+				#plt.plot(self.u[53,-20:], color="green", label="u", linewidth=1)
+				#plt.plot(gradphi_x[53,-20:], color="red", label="graphix", linewidth=1)
+				#plt.legend(loc="best")
 				# Affichage de la norme de la vitesse
-				#plt.imshow(np.sqrt(self.u[1:-1,1:-1]**2+self.v[1:-1,1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none', norm = self.color_norm)
+				plt.imshow(np.sqrt(self.u[1:-1,1:-1]**2+self.v[1:-1,1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none', norm = self.color_norm)
 			
-					## Affichage de la vorticité
-			#	plt.imshow(self.w[1:-1,1:-1], origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm_w)
+				## Affichage de la vorticité
+				#plt.imshow(self.w[1:-1,1:-1], origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm_w)
 				
 				#phi_flat = self.phi[1:-1, 1:-1].flatten()
 				#plt.imshow(np.dot(self.matrice_laplacien_2D.todense(), phi_flat).reshape(self.ny, self.nx), origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm)
+				#plt.imshow(self.phi, origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm)
 			
-				#plt.colorbar()
+				plt.colorbar()
 
-				#plt.axis('image')
+				plt.axis('image')
 				if n<10:		
 					plt.savefig("image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
 				elif n<100:
@@ -438,9 +444,9 @@ class VonKarman():
 					plt.savefig("image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
 				else:
 					plt.savefig("image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				
+				"""
 				plt.clf()
-				plt.plot(self.phi[53,:20], color="red", label="phi", linewidth=1)
+				plt.plot(self.phi[53,-20:], color="red", label="phi", linewidth=1)
 				plt.legend(loc="best")
 				if n<10:		
 					plt.savefig("phi/image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
@@ -450,7 +456,7 @@ class VonKarman():
 					plt.savefig("phi/image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
 				else:
 					plt.savefig("phi/image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				
+				"""
 				"""
 				for x in list_Y:
 					plt.clf()
@@ -500,7 +506,8 @@ class VonKarman():
 				t_simu_precedemment_enregistre = t_simu
 	
 		self.command_string += " movie.gif"
-		os.system(self.command_string)
+		#os.system(self.command_string)
+		np.savetxt("commandstring.txt", self.command_string)
 		print("Simulation effectuée en {} s. Données enregistrées dans {}.".format(time.time()-t_i, self.dirname))
 
 #for x in np.arange(0, 30, 5):
@@ -508,5 +515,5 @@ class VonKarman():
 #	simu = VonKarman(Re = 50, Nt = 100, Nx = 30, Ny = 7, pas_enregistrement = 1)
 #	simu.main_loop(x)
 
-simu = VonKarman(Re = 50, Nt = 100, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 1, r = 0.5, tau = 5)
+simu = VonKarman(Re = 50, Nt = 3000, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5)
 simu.main_loop(np.arange(0, 20), np.arange(0, 105, 10))
