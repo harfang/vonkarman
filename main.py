@@ -63,7 +63,7 @@ Plan du code :
 
 class VonKarman():
 
-	def __init__(self, Lx = 30.0, Ly = 7.0, Nx = 150, Ny=35, Nt=1200, r = 0.35, Re = 100, pas_enregistrement = 5):
+	def __init__(self, Lx = 30.0, Ly = 7.0, Nx = 150, Ny=35, Nt=1200, r = 0.35, Re = 100, pas_enregistrement = 5, tau = 1):
 		## Definition des constantes
 		self.Lx = Lx
 		self.Ly = Ly
@@ -96,7 +96,22 @@ class VonKarman():
 		self.phi = np.zeros((self.Ny, self.Nx))
 		self.ustar = np.zeros((self.Ny, self.Nx))
 		self.vstar = np.zeros((self.Ny, self.Nx))
-
+		
+		self.u0 = 0
+		
+		#debug
+		"""
+		list_x = self.dx*np.arange(self.Nx)
+		for j in range(self.Ny):
+			self.u[j, :] = np.exp(-list_x)
+			
+		plt.imshow(np.sqrt(self.u[1:-1,1:-1]**2+self.v[1:-1,1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none')
+		plt.colorbar()
+		plt.axis('image')
+		plt.savefig("image0000.jpg", dpi = 300)
+		"""
+		self.tau = tau
+		
 		#Définition de l'objet 
 		## Définition de l'objet
 		#On place le centre de l'objet en -8r, Ly/2)
@@ -163,8 +178,8 @@ class VonKarman():
 
 	def grad(self, f):
 		"""Renvoie le gradient de f. Schéma centré (ordre 2)."""
-		grad_f_x = np.empty((self.Ny, self.Nx))
-		grad_f_y = np.empty((self.Ny, self.Nx))
+		grad_f_x = np.zeros((self.Ny, self.Nx))
+		grad_f_y = np.zeros((self.Ny, self.Nx))
 #		grad_f_y[1:-1, 1:-1] = (f[2:, 1:-1] - f[:-2, 1:-1])/(2*self.dy)
 #		grad_f_x[1:-1, 1:-1] = (f[1:-1, 2:] - f[1:-1, :-2])/(2*self.dx)
 		grad_f_y[1:-1, :] = (f[2:, :] - f[:-2, :])/(2*self.dy)
@@ -173,7 +188,7 @@ class VonKarman():
 
 	def laplacien(self, f):
 		"""Renvoie le laplacien de la fonction scalaire f"""
-		laplacien_f = np.empty((self.Ny, self.Nx))
+		laplacien_f = np.zeros((self.Ny, self.Nx))
 		dx_2 = 1/(self.dx)**2
 		dy_2 = 1/(self.dy)**2
 		coef0 = -2*(dx_2 + dy_2)  
@@ -221,17 +236,17 @@ class VonKarman():
 
 	def cl_soufflerie(self):
 		"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie"""
-		self.ustar[:, 1] = 1 #la vitesse est de 1 en entrée
+		self.ustar[:, 1] = 1 #self.u0 #la vitesse est de 1 en entrée
 		self.vstar[:, 1] = 0 #la vitesse v est nulle en entrée
-		self.ustar[0,1:-1]= self.ustar[2,1:-1] #en haut la contrainte est nulle
-		self.vstar[:2, :] = 0 #en haut, la vitesse normale est nulle
-		self.ustar[-1,1:-1]= self.ustar[-3,1:-1] #en bas la contrainte est nulle
-		self.vstar[self.Ny-2:, :] = 0 #en bas, la vitesse normale est nulle
-		self.ustar[:, self.Nx-1] = self.ustar[:, self.Nx-2] #dérivée de u par rapport à x nulle à la sortie -2 ou -3 ?
-		self.vstar[:, self.Nx-1] = self.vstar[:, self.Nx-2] #dérivée de v par rapport à x nulle à la sortie
-	#	ustar[Ny//2,:2]=
-	#	ustar[Ny//2+1,:2]=3
-	
+		#self.ustar[0,1:-1] = self.ustar[2,1:-1] #en haut la contrainte est nulle
+		#self.vstar[:2, :] = 0 #en haut, la vitesse normale est nulle
+		#self.ustar[-1,1:-1]= self.ustar[-3,1:-1] #en bas la contrainte est nulle
+		#self.vstar[self.Ny-2:, :] = 0 #en bas, la vitesse normale est nulle
+		#self.ustar[:, self.Nx-1] = self.ustar[:, self.Nx-2] #dérivée de u par rapport à x nulle à la sortie -2 ou -3 ?
+		#self.vstar[:, self.Nx-1] = self.vstar[:, self.Nx-2] #dérivée de v par rapport à x nulle à la sortie
+		self.vstar[1, :] = 0
+		self.vstar[-2, :] = 0
+			
 	def cl_objet(self):
 		"""Modifie les tableaux pour satifsaire les conditions aux limites de la vitesse autour de l'objet"""
 		self.ustar *= self.objet
@@ -247,12 +262,12 @@ class VonKarman():
 		#quelle est alors la valeur à mettre dans la dernière colonne ? on garde 0 ?
 
 	def points_fantome_vitesse(self, u, v):
-		u[:, 0] = 2 - u[:, 2] #la vitesse est de 1 en entrée
-		v[:, 0] = -v[:, 2] #la vitesse v est nulle en entrée
+		u[:, 0] = 2*u[:, 1] - u[:, 2] #la vitesse est de 1 en entrée
+		v[:, 0] = 2*v[:, 1] - v[:, 2] #la vitesse v est nulle en entrée
 		u[0, :] = u[2, :] #en haut la contrainte est nulle
-		v[0, :] = 0 #en haut, la vitesse normale est nulle
+		v[0, :] = 2*v[1, :] - v[2, :] #en haut, la vitesse normale est nulle
 		u[-1,:] = u[-3,:] #en haut la contrainte est nulle
-		v[-1, :] = 0 #en bas, la vitesse normale est nulle
+		v[-1, :] = 2*v[-2, :] - v[-3, :] #en bas, la vitesse normale est nulle
 		u[:, -1] = u[:, -2] #dérivée de u par rapport à x nulle à la sortie
 		v[:, -1] = v[:, -2] #dérivée de v par rapport à x nulle à la sortie
 
@@ -268,12 +283,12 @@ class VonKarman():
 		"""Calcul l'accélération convective u grad u"""
 		#problème : il utilise une autre convention que la notre c'est-à-dire que pour lui x est le premier indice. 
 
-		Resu = np.empty((self.Ny, self.Nx))
-		Resv = np.empty((self.Ny, self.Nx))
+		Resu = np.zeros((self.Ny, self.Nx))
+		Resv = np.zeros((self.Ny, self.Nx))
 
 		# Matrice avec des 1 quand on va a droite, 
 		# 0 a gauche ou au centre
-		Mx2 = np.sign(np.sign(self.u[1:-1,1:-1]) + 1)
+		Mx2 = np.sign(np.sign(self.u[1:-1,1:-1]) + 1.)
 		Mx1 = 1. - Mx2
 
 		# Matrice avec des 1 quand on va en haut, 
@@ -284,7 +299,7 @@ class VonKarman():
 		# Matrices en valeurs absolues pour u et v
 		au = abs(self.u[1:-1,1:-1])*self.dt/self.dx
 		av = abs(self.v[1:-1,1:-1])*self.dt/self.dy
-
+		
 		# Matrices des coefficients qui va pondérer la vitesse des points respectivement
 		# central, exterieur, meme x, meme y	 
 		Cc = (1. - au) * (1. - av) 
@@ -363,16 +378,15 @@ class VonKarman():
 
 		## Boucle principale
 		for n in range(self.Nt):
-
+			#self.u0 = 1-np.exp(-(n+1)/self.tau)
 			#Calcul du nouveau dt pour respecter les conditions CFL
 			self.condition_cfl()
-		
 			#Calcul de l'accélération convective
 			Resu, Resv = self.calcul_a_conv()
 			#Navier-Stokes
 			self.ustar[1:-1,1:-1] = Resu[1:-1,1:-1]+self.dt*self.laplacien(self.u)[1:-1,1:-1]/self.Re
 			self.vstar[1:-1,1:-1] = Resv[1:-1,1:-1]+self.dt*self.laplacien(self.v)[1:-1,1:-1]/self.Re
-	
+			
 			#Conditions aux limites
 			## Soufflerie numérique
 			self.cl_soufflerie()
@@ -381,16 +395,16 @@ class VonKarman():
 			
 			# Mise à jour des points fantomes
 			self.points_fantome_vitesse(self.ustar, self.vstar)
-	
+
 			#Projection
 			divstar = self.divergence(self.ustar, self.vstar)
 			self.solve_laplacien(divstar[1:-1,1:-1])
 			self.cl_phi()
 			gradphi_x, gradphi_y = self.grad(self.phi) # code optimisable en réduisant le nombre de variables
-	
-			self.u[1:-1,1:-1] = self.ustar[1:-1,1:-1] - gradphi_x[1:-1,1:-1]
-			self.v[1:-1,1:-1] = self.vstar[1:-1,1:-1] - gradphi_y[1:-1,1:-1]
-			
+
+			self.u[1:-1, 1:-1] = self.ustar[1:-1, 1:-1] - gradphi_x[1:-1, 1:-1]
+			self.v[1:-1, 1:-1] = self.vstar[1:-1, 1:-1] - gradphi_y[1:-1, 1:-1]
+
 			#Fin du calcul
 			t_simu += self.dt
 			self.points_fantome_vitesse(self.u, self.v)
@@ -400,9 +414,9 @@ class VonKarman():
 			if n%self.pas_enregistrement == 0:
 				print(n, 'sur', self.Nt)
 				plt.clf()
-				plt.plot(self.ustar[53,:], color="blue", label="ustar", linewidth=1)
-				plt.plot(self.u[53,:], color="green", label="u", linewidth=1)
-				plt.plot(gradphi_x[53,:], color="red", label="graphix", linewidth=1)
+				plt.plot(self.ustar[53,:20], color="blue", label="ustar", linewidth=1)
+				plt.plot(self.u[53,:20], color="green", label="u", linewidth=1)
+				plt.plot(gradphi_x[53,:20], color="red", label="graphix", linewidth=1)
 				plt.legend(loc="best")
 				# Affichage de la norme de la vitesse
 				#plt.imshow(np.sqrt(self.u[1:-1,1:-1]**2+self.v[1:-1,1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none', norm = self.color_norm)
@@ -410,7 +424,8 @@ class VonKarman():
 					## Affichage de la vorticité
 			#	plt.imshow(self.w[1:-1,1:-1], origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm_w)
 				
-			#		plt.imshow(self.phi, origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm)
+				#phi_flat = self.phi[1:-1, 1:-1].flatten()
+				#plt.imshow(np.dot(self.matrice_laplacien_2D.todense(), phi_flat).reshape(self.ny, self.nx), origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm)
 			
 				#plt.colorbar()
 
@@ -425,7 +440,7 @@ class VonKarman():
 					plt.savefig("image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
 				
 				plt.clf()
-				plt.plot(self.phi[53,:], color="red", label="phi", linewidth=1)
+				plt.plot(self.phi[53,:20], color="red", label="phi", linewidth=1)
 				plt.legend(loc="best")
 				if n<10:		
 					plt.savefig("phi/image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
@@ -493,5 +508,5 @@ class VonKarman():
 #	simu = VonKarman(Re = 50, Nt = 100, Nx = 30, Ny = 7, pas_enregistrement = 1)
 #	simu.main_loop(x)
 
-simu = VonKarman(Re = 50, Nt = 300, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 1, r = 0.5)
+simu = VonKarman(Re = 50, Nt = 100, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 1, r = 0.5, tau = 5)
 simu.main_loop(np.arange(0, 20), np.arange(0, 105, 10))
