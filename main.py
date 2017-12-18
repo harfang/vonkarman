@@ -11,6 +11,9 @@ import time
 import scipy.sparse as sp
 import scipy.sparse.linalg as linalg
 import os
+import scipy.signal
+import scipy.fftpack as fft
+import math
 
 """
 	u : vitesse horizontale (Ox) matrice Ny par Nx
@@ -63,7 +66,7 @@ Plan du code :
 
 class VonKarman():
 
-	def __init__(self, Lx = 30.0, Ly = 7.0, Nx = 150, Ny=35, Nt=1200, r = 0.35, Re = 100, pas_enregistrement = 5):
+	def __init__(self, Lx = 30.0, Ly = 7.0, Nx = 150, Ny=35, Nt=1200, r = 0.35, Re = 100, pas_enregistrement = 5, dpi = 100):
 		## Definition des constantes
 		self.Lx = Lx
 		self.Ly = Ly
@@ -86,9 +89,8 @@ class VonKarman():
 		if 4*r > Ly or 10*r > Lx:
 			print("ERREUR SUR r : r > Ly or r > Lx")
 	
-		self.Nt = Nt #durée de la simulation
-		self.pas_enregistrement = pas_enregistrement #sauvegarde d'une image sur pas_enregistrement
-
+		self.Nt = int(Nt) #durée de la simulation
+		self.pas_enregistrement = int(pas_enregistrement) #sauvegarde d'une image sur pas_enregistrement
 
 		## Conditions initiales
 		self.u = np.zeros((self.Ny, self.Nx))
@@ -96,19 +98,7 @@ class VonKarman():
 		self.phi = np.zeros((self.Ny, self.Nx))
 		self.ustar = np.zeros((self.Ny, self.Nx))
 		self.vstar = np.zeros((self.Ny, self.Nx))
-		
-		#debug
-		"""
-		list_x = self.dx*np.arange(self.Nx)
-		for j in range(self.Ny):
-			self.u[j, :] = np.exp(-list_x)
-			
-		plt.imshow(np.sqrt(self.u[1:-1,1:-1]**2+self.v[1:-1,1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none')
-		plt.colorbar()
-		plt.axis('image')
-		plt.savefig("image0000.jpg", dpi = 300)
-		"""
-		
+				
 		#Définition de l'objet 
 		## Définition de l'objet
 		#On place le centre de l'objet en -8r, Ly/2)
@@ -116,48 +106,17 @@ class VonKarman():
 		self.objet=np.ones((self.Ny, self.Nx))
 		for i in range(self.Ny): 
 			for j in range(self.Nx):
-				if (j*self.dx-15*self.r)**2+(i*self.dy-0.5*(self.Ly+2*self.dy))**2 < self.r**2:
+				if (j*self.dx-15*self.r)**2+(i*self.dy-0.55*(self.Ly+2*self.dy))**2 < self.r**2:
 					self.objet[i][j]=0
 					
 		# Affichage
 		self.dirname = ""
+		self.root_dir = ""
+		self.dpi = int(dpi)
 		
 		# Laplacien
 		self.construction_matrice_laplacien_2D()
-
-	"""
-	---------------------------------------------------------------------------------
-	|																				|
-	|				PREPARATION AFFICHAGE ET ENREGISTREMENT							|
-	|																				|
-	---------------------------------------------------------------------------------
-	"""
 	
-	def create_dir(self):
-		"""Création du dossier pour l'enregistrement"""
-		self.dirname = os.path.dirname(os.path.realpath(__file__))+"/"+str(time.strftime("%Y-%m-%d - %X"))
-		if not os.path.exists(self.dirname):
-			os.makedirs(self.dirname)
-		else:
-			timestamp = time.time()
-			self.dirname += str(timestamp-int(timestamp))[1:]
-			os.makedirs(self.dirname)
-	
-		os.chdir(self.dirname) # change le répertoire de travail
-
-		np.savetxt("parameters.txt", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re]).transpose(), header = "Lx \t Ly \t Nx \t Ny \t Nt \t r \t Re \n", newline="\t")
-	
-		## Préparation de la création d'un gif animé
-		self.command_string = "convert *.jpg -loop 0 \\\n"
-
-		""" ATTENTION LA LIGNE QUI SUIT VA PROVOQUER UNE ERREUR SI LA NORME DE LA VITESSE DEPASSE vmax"""
-		## Normalisation des couleurs
-		self.color_norm = matplotlib.colors.Normalize(vmin=0.,vmax=2.)
-		self.color_norm_w = matplotlib.colors.Normalize(vmin=-8,vmax=8)
-		
-		# debug
-		os.mkdir("./phi/")
-
 	"""
 	---------------------------------------------------------------------------------
 	|																				|
@@ -177,8 +136,7 @@ class VonKarman():
 		"""Renvoie le gradient de f. Schéma centré (ordre 2)."""
 		grad_f_x = np.zeros((self.Ny, self.Nx))
 		grad_f_y = np.zeros((self.Ny, self.Nx))
-#		grad_f_y[1:-1, 1:-1] = (f[2:, 1:-1] - f[:-2, 1:-1])/(2*self.dy)
-#		grad_f_x[1:-1, 1:-1] = (f[1:-1, 2:] - f[1:-1, :-2])/(2*self.dx)
+
 		grad_f_y[1:-1, :] = (f[2:, :] - f[:-2, :])/(2*self.dy)
 		grad_f_x[:, 1:-1] = (f[:, 2:] - f[:, :-2])/(2*self.dx)
 		return grad_f_x, grad_f_y
@@ -225,7 +183,7 @@ class VonKarman():
 		dt_adv = facteur_de_precaution_cfl * min(self.dx, self.dy)/max(u_max, v_max, 1)
 
 		#2. Diffusion
-		dt_diffusion = facteur_de_precaution_cfl * self.Re*min(self.dx**2, self.dy**2)/4
+		dt_diffusion = facteur_de_precaution_cfl * self.Re*min(self.dx**2, self.dy**2)/10 #/4 au lieu de 10 ; /5 : trop peu pour Re ~ 60, /10 : mieux mais à tester
 	
 		#3. min
 		dt_min = min(dt_diffusion, dt_adv)
@@ -348,15 +306,155 @@ class VonKarman():
 		DYY2[0,1]     = 2.*dy_2  # en haut
 		DYY2[-1, self.ny-2] = 2.*dy_2  # en bas
 		self.matrice_laplacien_2D = sp.kron(sp.eye(self.ny, self.ny), DXX2) + sp.kron(DYY2, sp.eye(self.nx, self.nx)) #sparse
-		#self.matrice_laplacien_2D = lap2D.todense()
 	
 	def solve_laplacien(self, div):
 		"""Renvoie phi telle que laplacien(phi) = div, avec les conditions aux limites données par cl_phi (cl_phi travaille directement sur les tableaux). La taille de div est nx*ny, celle de lapacien son carré"""
 		div_flat = div.flatten()
 		phi_flat = linalg.spsolve(self.matrice_laplacien_2D, div_flat)
 		self.phi = np.zeros((self.Ny,self.Nx))
-		self.phi[1:-1,1:-1] = phi_flat.reshape((self.ny,self.nx))
+		self.phi[1:-1,1:-1] = phi_flat.reshape((self.ny,self.nx))		
 
+	"""
+	---------------------------------------------------------------------------------
+	|																				|
+	|				AFFICHAGE ET ENREGISTREMENT										|
+	|																				|
+	---------------------------------------------------------------------------------
+	"""
+	
+	def create_working_dir(self):
+		self.root_dir = os.path.dirname(os.path.realpath(__file__))
+		self.dirname = self.root_dir+"/"+str(time.strftime("%Y-%m-%d - %X"))+" - Re = "+str(self.Re)
+		if not os.path.exists(self.dirname):
+			os.makedirs(self.dirname)
+		else:
+			timestamp = time.time()
+			self.dirname += str(timestamp-int(timestamp))[1:]
+			os.makedirs(self.dirname)
+	
+		os.chdir(self.dirname) # change le répertoire de travail
+
+		np.savetxt("parameters.txt", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re]).transpose(), header = "Lx \t Ly \t Nx \t Ny \t Nt \t r \t Re \n", newline="\t")
+	
+	""" ENREGISTREMENT DE GIF ANIME """
+	
+	def callback_gif_start(self):
+		"""Création du dossier pour l'enregistrement"""
+		self.create_working_dir()
+	
+		## Préparation de la création d'un gif animé
+		self.command_string = "convert *.jpg -loop 0 \\\n"
+
+		""" ATTENTION LA LIGNE QUI SUIT VA PROVOQUER UNE ERREUR SI LA NORME DE LA VITESSE DEPASSE vmax"""
+		## Normalisation des couleurs
+		self.color_norm = matplotlib.colors.Normalize(vmin=0.,vmax=2.1)
+		self.color_norm_w = matplotlib.colors.Normalize(vmin=-13,vmax=13)
+		
+		## Enregistrement de la vorticité
+		os.mkdir("./w/")
+	
+	def callback_gif_loop(self, n, t_simu, t_simu_precedemment_enregistre):
+		plt.clf()
+		# Enregistrement de la norme de la vitesse
+		plt.imshow(np.sqrt(self.u[1:-1, 1:-1]**2+self.v[1:-1, 1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none', norm = self.color_norm)
+		plt.colorbar()
+		plt.title("t = {:.2f}".format(t_simu))
+		plt.axis('image')
+		if n<10:		
+			plt.savefig("image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		elif n<100:
+			plt.savefig("image00{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		elif n<1000:
+			plt.savefig("image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		else:
+			plt.savefig("image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+				
+		## Enregistrement de la vorticité
+		plt.clf()
+		plt.imshow(self.w[1:-1,1:-1], origin='lower', cmap='seismic', interpolation = 'none', norm = self.color_norm_w)
+		plt.colorbar()
+		plt.title("t = {:.2f}".format(t_simu))
+		plt.axis('image')
+		if n<10:		
+			plt.savefig("./w/image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		elif n<100:
+			plt.savefig("./w/image00{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		elif n<1000:
+			plt.savefig("./w/image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		else:
+			plt.savefig("./w/image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+
+		self.command_string += "\\( -clone {} -set delay {} \\) -swap {} +delete \\\n".format(n//self.pas_enregistrement, (t_simu-t_simu_precedemment_enregistre)*10, n//self.pas_enregistrement)
+	
+	def callback_gif_end(self):
+		self.command_string += " movie.gif"
+		os.system(self.command_string)
+		os.chdir(self.dirname+"/w/")
+		os.system(self.command_string)
+		os.chdir(self.dirname)
+		with open("commandstring.txt", "w") as saved_commandstring:
+			saved_commandstring.write(self.command_string)
+		print("Données enregistrées dans {}.".format(self.dirname))
+		
+	""" CORRELATIONS DE VITESSE"""
+	
+	def callback_correlations_vitesse_start(self):
+		self.create_working_dir()
+		self.amplitude_oscillations = np.zeros((self.Nt//self.pas_enregistrement))
+		self.liste_t = np.zeros((self.Nt//self.pas_enregistrement))
+		print(self.liste_t.shape)
+		print(self.amplitude_oscillations)
+		
+		ny_test = int(self.r/self.dy)+5
+		nx_test = int(self.r/self.dx)+5
+		self.objet_test = np.ones((ny_test, nx_test))
+		for i in range(ny_test):
+			for j in range(nx_test):
+				if (j*self.dx-(nx_test*self.dx)/2)**2+(i*self.dy-(ny_test*self.dy)/2)**2 < self.r**2:
+					self.objet_test[i][j] = 0.
+		self.index_bord_calcul_correlations = np.argmin(self.objet, axis = 1).max()+int(6*self.r/self.dy)
+		
+	def callback_correlations_vitesse_loop(self, n, t_simu, t_simu_precedemment_enregistre):
+		print(n)
+		norme_vitesse = np.sqrt(self.u[1:-1,self.index_bord_calcul_correlations:-1]**2+self.v[1:-1,self.index_bord_calcul_correlations:-1]**2)
+		corr = scipy.signal.correlate2d(norme_vitesse, self.objet_test, mode = "same", boundary = "symm")
+		self.amplitude_oscillations[n//self.pas_enregistrement] = float(np.argmin(corr, axis = 0)[0])
+		self.liste_t[n//self.pas_enregistrement] = t_simu
+		
+		"""
+		plt.clf()
+		plt.imshow(corr, origin='lower', cmap='bwr', interpolation = 'none')
+		plt.colorbar()
+		plt.title("t = {:.2f}".format(t_simu))
+		plt.axis('image')
+		if n<10:		
+			plt.savefig("image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		elif n<100:
+			plt.savefig("image00{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		elif n<1000:
+			plt.savefig("image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		else:
+			plt.savefig("image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+		"""
+		
+	def callback_correlations_vitesse_end(self):
+		plt.clf()
+		plt.plot(self.liste_t[200:], self.amplitude_oscillations[200:])
+		plt.savefig("plot_amplitude.jpg")
+		plt.clf()
+		"""
+		fft_amplitude = fft.fft(self.amplitude_oscillations)
+		freqs = fft.fftfreq(len(self.amplitude_oscillations))
+		plt.semilogy(fft.fftshift(freqs), fft.fftshift(fft_amplitude*fft_amplitude.conjugate()))
+		"""
+		#plt.plot(self.liste_t[100:], scipy.signal.correlate(self.amplitude_oscillations[100:], self.amplitude_oscillations[100:], mode = "same"))
+		freqs = 2*math.pi*np.logspace(-2, 2, 5000)
+		pgram = scipy.signal.lombscargle(np.array(self.liste_t[500:], dtype = 'float64'), np.array(self.amplitude_oscillations[500:], dtype = 'float64'), freqs) #[200:]
+		plt.semilogy(freqs, pgram)
+		plt.savefig("plot_amplitude_autocorrelation.jpg")
+		np.savetxt("amplitude_oscillations.txt", np.array(self.amplitude_oscillations))
+		np.savetxt("liste_t.txt", np.array(self.liste_t))
+		
 	"""
 	---------------------------------------------------------------------------------
 	|																				|
@@ -365,17 +463,24 @@ class VonKarman():
 	---------------------------------------------------------------------------------
 	"""
 	
-	def main_loop(self, list_X, list_Y):
+	def main_loop(self, f_callback_start = None, f_callback_loop = None, f_callback_end = None):
+		"""Boucle principe ; appelle f_callback_start au début, f_callback_loop à chaque pas d'enregistrement et f_callback_end à la fin"""
+		if f_callback_start == None:
+			f_callback_start = self.callback_gif_start
+		if f_callback_loop == None:
+			f_callback_loop = self.callback_gif_loop
+		if f_callback_end == None:
+			f_callback_end = self.callback_gif_end
+		
 		t_simu = 0
 		t_simu_precedemment_enregistre = 0
 
 		t_i = time.time()
 		
-		self.create_dir()
+		f_callback_start()
 
 		## Boucle principale
 		for n in range(self.Nt):
-			#self.u0 = 1-np.exp(-(n+1)/self.tau)
 			#Calcul du nouveau dt pour respecter les conditions CFL
 			self.condition_cfl()
 			#Calcul de l'accélération convective
@@ -399,13 +504,6 @@ class VonKarman():
 			self.cl_phi()
 			gradphi_x, gradphi_y = self.grad(self.phi) # code optimisable en réduisant le nombre de variables
 			
-#			print("u")
-#			print(self.u)
-#			print("phi")
-#			print(self.phi)
-#			print("divstar")
-#			print(divstar)
-			
 			self.u[1:-1, 1:-1] = self.ustar[1:-1, 1:-1] - gradphi_x[1:-1, 1:-1]
 			self.v[1:-1, 1:-1] = self.vstar[1:-1, 1:-1] - gradphi_y[1:-1, 1:-1]
 
@@ -413,107 +511,26 @@ class VonKarman():
 			t_simu += self.dt
 			self.points_fantome_vitesse(self.u, self.v)
 	
-			## Affichage
-				# Premier script : enregistrement d'une image sur pas_enregistrement
-			
+			## Enregistrement
 			if n%self.pas_enregistrement == 0:
-				print(n, 'sur', self.Nt)
-				plt.clf()
-				#plt.plot(self.ustar[53,-20:], color="blue", label="ustar", linewidth=1)
-				#plt.plot(self.u[53,-20:], color="green", label="u", linewidth=1)
-				#plt.plot(gradphi_x[53,-20:], color="red", label="graphix", linewidth=1)
-				#plt.legend(loc="best")
-				# Affichage de la norme de la vitesse
-				plt.imshow(np.sqrt(self.u[1:-1,1:-1]**2+self.v[1:-1,1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none', norm = self.color_norm)
-			
-				## Affichage de la vorticité
-				#plt.imshow(self.w[1:-1,1:-1], origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm_w)
-				
-				#phi_flat = self.phi[1:-1, 1:-1].flatten()
-				#plt.imshow(np.dot(self.matrice_laplacien_2D.todense(), phi_flat).reshape(self.ny, self.nx), origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm)
-				#plt.imshow(self.phi, origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm)
-			
-				plt.colorbar()
-
-				plt.axis('image')
-				if n<10:		
-					plt.savefig("image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				elif n<100:
-					plt.savefig("image00{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				elif n<1000:
-					plt.savefig("image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				else:
-					plt.savefig("image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				"""
-				plt.clf()
-				plt.plot(self.phi[53,-20:], color="red", label="phi", linewidth=1)
-				plt.legend(loc="best")
-				if n<10:		
-					plt.savefig("phi/image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				elif n<100:
-					plt.savefig("phi/image00{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				elif n<1000:
-					plt.savefig("phi/image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				else:
-					plt.savefig("phi/image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = 160)
-				"""
-				"""
-				for x in list_Y:
-					plt.clf()
-					plt.plot(self.ustar[x,:15], color="blue", label="ustar", linewidth=1)
-					plt.plot(self.u[x,:15], color="green", label="u", linewidth=1)
-					plt.plot(gradphi_x[x,:15], color="red", label="graphix", linewidth=1)
-					plt.legend(loc="best")
-					# Affichage de la norme de la vitesse
-	#				plt.imshow(np.sqrt(self.u[1:-1,1:-1]**2+self.v[1:-1,1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none', norm = self.color_norm)
-			
-					## Affichage de la vorticité
-			#		plt.imshow(self.w[1:-1,1:-1], origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm_w)
-				
-			#		plt.imshow(self.phi, origin='lower', cmap='bwr', interpolation = 'none')#, norm = self.color_norm)
-			
-				#	plt.colorbar()
-
-	#				plt.axis('image')
-					if n<10:		
-						plt.savefig("image000{}_t={}_Re={}_x={}.jpg".format(n+1, t_simu, self.Re, x), dpi = 160)
-					elif n<100:
-						plt.savefig("image00{}_t={}_Re={}_x={}.jpg".format(n+1, t_simu, self.Re, x), dpi = 160)
-					elif n<1000:
-						plt.savefig("image0{}_t={}_Re={}_x={}.jpg".format(n+1, t_simu, self.Re, x), dpi = 160)
-					else:
-						plt.savefig("image{}_t={}_Re={}_x={}.jpg".format(n+1, t_simu, self.Re, x), dpi = 160)
-			
-				self.command_string += "\\( -clone {} -set delay {} \\) -swap {} +delete \\\n".format(n//self.pas_enregistrement, (t_simu-t_simu_precedemment_enregistre)*10, n//self.pas_enregistrement)
+				#print(n, 'sur', self.Nt)
+				f_callback_loop(n, t_simu, t_simu_precedemment_enregistre)
 				t_simu_precedemment_enregistre = t_simu
 				
-				## debug phi
-				for y in list_Y:
-					plt.clf()
-					plt.plot(self.phi[y,:15], color="green", label="phi")
-					plt.legend(loc="best")
+		f_callback_end()
+		print("Simulation effectuée en {} s.".format(time.time()-t_i))
 
-					if n<10:		
-						plt.savefig("./phi/image000{}_t={}_Re={}_y={}.jpg".format(n+1, t_simu, self.Re, y), dpi = 160)
-					elif n<100:
-						plt.savefig("./phi/image00{}_t={}_Re={}_y={}.jpg".format(n+1, t_simu, self.Re, y), dpi = 160)
-					elif n<1000:
-						plt.savefig("./phi/image0{}_t={}_Re={}_y={}.jpg".format(n+1, t_simu, self.Re, y), dpi = 160)
-					else:
-						plt.savefig("./phi/image{}_t={}_Re={}_y={}.jpg".format(n+1, t_simu, self.Re, y), dpi = 160)
-			"""
-				self.command_string += "\\( -clone {} -set delay {} \\) -swap {} +delete \\\n".format(n//self.pas_enregistrement, (t_simu-t_simu_precedemment_enregistre)*10, n//self.pas_enregistrement)
-				t_simu_precedemment_enregistre = t_simu
-	
-		self.command_string += " movie.gif"
-		#os.system(self.command_string)
-		np.savetxt("commandstring.txt", self.command_string)
-		print("Simulation effectuée en {} s. Données enregistrées dans {}.".format(time.time()-t_i, self.dirname))
 
-#for x in np.arange(0, 30, 5):
-#	os.chdir("/home/flo/Documents/1. ENS/2017 - 2018/1. Physique/3. Physique numérique/0. Projet/poo/tests vitesse 2")
-#	simu = VonKarman(Re = 50, Nt = 100, Nx = 30, Ny = 7, pas_enregistrement = 1)
-#	simu.main_loop(x)
+def loop_Re():
+	Re_list = np.linspace(10, 100, 8)
+	for Re in Re_list:
+		simu = VonKarman(Re = Re, Nt = 5, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5)
+		simu.main_loop(dpi = 72)
+		os.chdir(simu.root_dir)
 
-simu = VonKarman(Re = 50, Nt = 3000, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5)
-simu.main_loop(np.arange(0, 20), np.arange(0, 105, 10))
+def single_Re(Re):
+	expand = 1.5 #1.5
+	simu = VonKarman(Re = Re, Nt = 10, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5)
+	simu.main_loop(simu.callback_correlations_vitesse_start, simu.callback_correlations_vitesse_loop, simu.callback_correlations_vitesse_end)
+	#simu.main_loop()
+single_Re(500)
