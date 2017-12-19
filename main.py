@@ -351,7 +351,7 @@ class VonKarman():
 	
 		os.chdir(self.dirname) # change le répertoire de travail
 
-		np.savetxt("parameters.txt", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re]).transpose(), header = "Lx \t Ly \t Nx \t Ny \t Nt \t r \t Re \n", newline="\t")
+		np.savetxt("parameters.txt", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re, self.Nt, self.pas_enregistrement]).transpose(), header = "Lx \t Ly \t Nx \t Ny \t Nt \t r \t Re \t Nt \t pas_enregistrement \n", newline="\t")
 	
 	""" ENREGISTREMENT DE GIF ANIME """
 	
@@ -456,22 +456,58 @@ class VonKarman():
 		np.savetxt("liste_t.txt", np.array(self.liste_t))
 		plt.clf()
 		plt.plot(self.liste_t[100:], self.amplitude_oscillations[100:])
-		plt.savefig("plot_amplitude.jpg")
+		plt.savefig("plot_amplitude_Re={}.jpg".format(self.Re), dpi = 300)
 		plt.clf()
-		"""
-		fft_amplitude = fft.fft(self.amplitude_oscillations)
-		freqs = fft.fftfreq(len(self.amplitude_oscillations))
-		plt.semilogy(fft.fftshift(freqs), fft.fftshift(fft_amplitude*fft_amplitude.conjugate()))
-		"""
-		#plt.plot(self.liste_t[100:], scipy.signal.correlate(self.amplitude_oscillations[100:], self.amplitude_oscillations[100:], mode = "same"))
-		freqs = 2*math.pi*np.logspace(-2, 2, 5000)
-		pgram = scipy.signal.lombscargle(np.array(self.liste_t, dtype = 'float64')[100:], np.array(self.amplitude_oscillations, dtype = 'float64')[100:], freqs) #[200:]
-		plt.semilogy(freqs, pgram)
-		plt.savefig("plot_amplitude_autocorrelation.jpg")
+		freqs = np.linspace(1e-2, 1e2, 10000)
+		pgram = scipy.signal.lombscargle(np.array(self.liste_t, dtype = 'float64')[100:], np.array(self.amplitude_oscillations, dtype = 'float64')[100:], freqs)/(self.Nt//self.pas_enregistrement)
+		plt.plot(freqs, pgram)
+		plt.savefig("plot_amplitude_autocorrelation_Re={}.jpg".format(self.Re), dpi = 300)
 		
-		freqs_max, spectre_max = harmonics(freqs, pgram, largeur = 0.1)
+		indices = scipy.signal.argrelextrema(pgram, np.greater, order = 1000)
+		freqs_max = freqs[indices]
 		print(freqs_max)
 		np.savetxt("freqs_max.txt", freqs_max)
+		os.chdir(self.dirname)
+		with open("../dataStRe.txt", "a") as f:
+			f.write("{},{}\n".format(self.Re, freqs_max[0]*self.r))
+		
+	""" ENREGISTREMENT DES DONNEES """
+	
+	def callback_save_start(self):
+		#Création du dossier pour l'enregistrement
+		self.create_working_dir()
+		
+		## Enregistrement de la vitesse
+		os.mkdir("./u/")
+		os.mkdir("./v/")
+	
+	def callback_save_loop(self, n, t_simu, t_simu_precedemment_enregistre):
+		# Enregistrement de u
+		os.chdir(self.dirname+"/u/")
+		if n<10:		
+			np.save("000{}_t={}_Re={}.npy".format(n+1, t_simu, self.Re), self.u)
+		elif n<100:
+			np.save("00{}_t={}_Re={}.npy".format(n+1, t_simu, self.Re), self.u)
+		elif n<1000:
+			np.save("0{}_t={}_Re={}.npy".format(n+1, t_simu, self.Re), self.u)
+		else:
+			np.save("{}_t={}_Re={}.npy".format(n+1, t_simu, self.Re), self.u)
+		os.chdir(self.dirname)
+				
+		# Enregistrement de v
+		os.chdir(self.dirname+"/v/")
+		if n<10:
+			np.save("000{}_t={}_Re={}.npy".format(n+1, t_simu, self.Re), self.v)
+		elif n<100:
+			np.save("00{}_t={}_Re={}.npy".format(n+1, t_simu, self.Re), self.v)
+		elif n<1000:
+			np.save("0{}_t={}_Re={}.npy".format(n+1, t_simu, self.Re), self.v)
+		else:
+			np.save("{}_t={}_Re={}.npy".format(n+1, t_simu, self.Re), self.v)
+		os.chdir(self.dirname)
+	
+	def callback_save_end(self):
+		pass
 		
 	"""
 	---------------------------------------------------------------------------------
@@ -540,10 +576,11 @@ class VonKarman():
 
 
 def loop_Re():
-	Re_list = np.linspace(10, 100, 8)
+	Re_list = np.linspace(300, 1500, 4)
+	expand = 1
 	for Re in Re_list:
-		simu = VonKarman(Re = Re, Nt = 5, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5)
-		simu.main_loop(dpi = 72)
+		simu = VonKarman(Re = Re, Nt = 1000, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5)
+		simu.main_loop(simu.callback_correlations_vitesse_start, simu.callback_correlations_vitesse_loop, simu.callback_correlations_vitesse_end)
 		os.chdir(simu.root_dir)
 
 def single_Re(Re):
@@ -551,4 +588,7 @@ def single_Re(Re):
 	simu = VonKarman(Re = Re, Nt = 1000, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5)
 	simu.main_loop(simu.callback_correlations_vitesse_start, simu.callback_correlations_vitesse_loop, simu.callback_correlations_vitesse_end)
 	#simu.main_loop()
-single_Re(500)
+#single_Re(1000)
+loop_Re()
+data = np.loadtxt("dataStRe.txt", delimiter = ',')
+plt.plot(1/data[:, 0], data[:, 1])
