@@ -54,7 +54,24 @@ Plan du code :
 		résolution de l'équation de Poisson
 """
 
-
+def harmonics(freqs, spectre, cutoff_freq_low = None, cutoff_freq_high = None, return_indices = False, largeur = 100):
+	"""Renvoie la liste des maximums locaux du spectre (fréquences et amplitude), ayant une fréquence entre cutoff_freq_low et cutoff_freq_high
+	
+	largueur : largueur de chaque pic en Hz (un pic à la fréquence f est un maximum local s'il est le maximum sur l'intervalle f +- largeur"""
+	
+	cutoff_low = 0
+	if cutoff_freq_low is not None:
+		cutoff_low = np.where(freqs >= cutoff_freq_low)[0][0]
+	cutoff_high = len(freqs)-1
+	if cutoff_freq_high is not None:
+		cutoff_high = np.where(freqs <= cutoff_freq_high)[0][-1]
+	order = int(largeur/abs(freqs[1]-freqs[0]))
+	indices = scipy.signal.argrelextrema(spectre[cutoff_low:cutoff_high], np.greater, order=order)[0]
+	if return_indices:
+		indices += cutoff_low
+		return freqs[cutoff_low:cutoff_high][indices], spectre[cutoff_low:cutoff_high][indices], indices
+	else:
+		return freqs[cutoff_low:cutoff_high][indices], spectre[cutoff_low:cutoff_high][indices]
 
 """
 ---------------------------------------------------------------------------------
@@ -402,8 +419,6 @@ class VonKarman():
 		self.create_working_dir()
 		self.amplitude_oscillations = np.zeros((self.Nt//self.pas_enregistrement))
 		self.liste_t = np.zeros((self.Nt//self.pas_enregistrement))
-		print(self.liste_t.shape)
-		print(self.amplitude_oscillations)
 		
 		ny_test = int(self.r/self.dy)+5
 		nx_test = int(self.r/self.dx)+5
@@ -415,7 +430,6 @@ class VonKarman():
 		self.index_bord_calcul_correlations = np.argmin(self.objet, axis = 1).max()+int(6*self.r/self.dy)
 		
 	def callback_correlations_vitesse_loop(self, n, t_simu, t_simu_precedemment_enregistre):
-		print(n)
 		norme_vitesse = np.sqrt(self.u[1:-1,self.index_bord_calcul_correlations:-1]**2+self.v[1:-1,self.index_bord_calcul_correlations:-1]**2)
 		corr = scipy.signal.correlate2d(norme_vitesse, self.objet_test, mode = "same", boundary = "symm")
 		self.amplitude_oscillations[n//self.pas_enregistrement] = float(np.argmin(corr, axis = 0)[0])
@@ -438,8 +452,10 @@ class VonKarman():
 		"""
 		
 	def callback_correlations_vitesse_end(self):
+		np.savetxt("amplitude_oscillations.txt", np.array(self.amplitude_oscillations))
+		np.savetxt("liste_t.txt", np.array(self.liste_t))
 		plt.clf()
-		plt.plot(self.liste_t[200:], self.amplitude_oscillations[200:])
+		plt.plot(self.liste_t[100:], self.amplitude_oscillations[100:])
 		plt.savefig("plot_amplitude.jpg")
 		plt.clf()
 		"""
@@ -449,11 +465,13 @@ class VonKarman():
 		"""
 		#plt.plot(self.liste_t[100:], scipy.signal.correlate(self.amplitude_oscillations[100:], self.amplitude_oscillations[100:], mode = "same"))
 		freqs = 2*math.pi*np.logspace(-2, 2, 5000)
-		pgram = scipy.signal.lombscargle(np.array(self.liste_t[500:], dtype = 'float64'), np.array(self.amplitude_oscillations[500:], dtype = 'float64'), freqs) #[200:]
+		pgram = scipy.signal.lombscargle(np.array(self.liste_t, dtype = 'float64')[100:], np.array(self.amplitude_oscillations, dtype = 'float64')[100:], freqs) #[200:]
 		plt.semilogy(freqs, pgram)
 		plt.savefig("plot_amplitude_autocorrelation.jpg")
-		np.savetxt("amplitude_oscillations.txt", np.array(self.amplitude_oscillations))
-		np.savetxt("liste_t.txt", np.array(self.liste_t))
+		
+		freqs_max, spectre_max = harmonics(freqs, pgram, largeur = 0.1)
+		print(freqs_max)
+		np.savetxt("freqs_max.txt", freqs_max)
 		
 	"""
 	---------------------------------------------------------------------------------
@@ -529,8 +547,8 @@ def loop_Re():
 		os.chdir(simu.root_dir)
 
 def single_Re(Re):
-	expand = 1.5 #1.5
-	simu = VonKarman(Re = Re, Nt = 10, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5)
+	expand = 1. #1.5
+	simu = VonKarman(Re = Re, Nt = 1000, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5)
 	simu.main_loop(simu.callback_correlations_vitesse_start, simu.callback_correlations_vitesse_loop, simu.callback_correlations_vitesse_end)
 	#simu.main_loop()
 single_Re(500)
