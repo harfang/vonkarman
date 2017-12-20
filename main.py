@@ -198,12 +198,12 @@ class VonKarman():
 			else:
 				deltai = self.colorant[n][0]-i
 				deltaj = self.colorant[n][1]-j
-				self.colorant[n][0]+=self.dt*((1-deltai)*(1-deltaj)*self.v[i,j]+(1-deltaj)*deltai*self.v[i+1,j]+deltaj*(1-deltai)*self.v[i,j+1]+deltai*deltaj*self.v[i+1,j+1])
-				self.colorant[n][1]+=self.dt*((1-deltai)*(1-deltaj)*self.u[i,j]+(1-deltaj)*deltai*self.u[i+1,j]+deltaj*(1-deltai)*self.u[i,j+1]+deltai*deltaj*self.u[i+1,j+1])
+				self.colorant[n][0]+=self.dt*((1-deltai)*(1-deltaj)*self.v[i,j]+(1-deltaj)*deltai*self.v[i+1,j]+deltaj*(1-deltai)*self.v[i,j+1]+deltai*deltaj*self.v[i+1,j+1])/self.dy
+				self.colorant[n][1]+=self.dt*((1-deltai)*(1-deltaj)*self.u[i,j]+(1-deltaj)*deltai*self.u[i+1,j]+deltaj*(1-deltai)*self.u[i,j+1]+deltai*deltaj*self.u[i+1,j+1])/self.dx
 		for k in retrait:
 			self.colorant.pop(k)
-#		for k in self.colorant_initial:
-#			self.colorant.append([k[0],k[1]])
+		for k in self.colorant_initial:
+			self.colorant.append([k[0],k[1]])
 		return(self.colorant)
 
 	"""
@@ -389,6 +389,7 @@ class VonKarman():
 		## Normalisation des couleurs
 		self.color_norm = matplotlib.colors.Normalize(vmin=0.,vmax=2.1)
 		self.color_norm_w = matplotlib.colors.Normalize(vmin=-13,vmax=13)
+		self.color_norm_colorant= matplotlib.colors.Normalize(vmin=-1,vmax=5)
 		
 		## Enregistrement de la vorticité
 		os.mkdir("./w/")
@@ -456,7 +457,8 @@ class VonKarman():
 		self.colorant=self.colo()
 		self.grille_colorant=np.copy(self.objet)
 		for k in range(len(self.colorant)):
-			self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))]=2
+			if self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))] < 6:
+				self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))]+=1
 		plt.imshow(self.grille_colorant, origin='lower', cmap='seismic', interpolation = 'none')		
 		plt.colorbar()
 		plt.title("t = {:.2f}".format(t_simu))
@@ -627,7 +629,7 @@ def loop_Re():
 		simu.main_loop(dpi = 72)
 		os.chdir(simu.root_dir)
 
-ini = [[35,3],[34,3],[33,3],[36,3],[37,3]]
+ini = [[35,50],[34,50],[33,50],[36,50],[37,50]]
 def single_Re(Re):
 	expand = 1. #1.5 rapport entre x et y
 	simu = VonKarman(Re = Re, Nt = 600, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5, vitesse_video = 5, colorant_initial=ini)
