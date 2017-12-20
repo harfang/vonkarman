@@ -133,8 +133,8 @@ class VonKarman():
 		self.dirname = ""
 		self.root_dir = ""
 		self.dpi = int(dpi)
-		print(self.colorant_initial)
-		
+		for k in self.colorant_initial:
+			self.colorant.append([k[0],k[1]])		
 		# Laplacien
 		self.construction_matrice_laplacien_2D()
 	
@@ -406,7 +406,6 @@ class VonKarman():
 			file_vitesse=open('video_vitesse.txt', 'a')
 			file_vitesse.write("file 'vitesse/image000{}.jpg'\n".format(n+1))
 			file_vitesse.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-			
 		elif n<100:
 			plt.savefig("./vitesse/image00{}.jpg".format(n+1), dpi = self.dpi)
 			file_vitesse=open('video_vitesse.txt', 'a')
@@ -456,8 +455,8 @@ class VonKarman():
 		plt.clf()
 		self.colorant=self.colo()
 		self.grille_colorant=np.copy(self.objet)
-		for n in range(len(self.colorant)):
-			self.grille_colorant[int(round(self.colorant[n][0]))][int(round(self.colorant[n][1]))]=2
+		for k in range(len(self.colorant)):
+			self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))]=2
 		plt.imshow(self.grille_colorant, origin='lower', cmap='seismic', interpolation = 'none')		
 		plt.colorbar()
 		plt.title("t = {:.2f}".format(t_simu))
@@ -467,6 +466,7 @@ class VonKarman():
 			file_colorant=open('video_colorant.txt', 'a')
 			file_colorant.write("file 'colorant/image000{}.jpg'\n".format(n+1))
 			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+			print(n)
 		elif n<100:
 			plt.savefig("./colorant/image00{}.jpg".format(n+1), dpi = self.dpi)
 			file_colorant=open('video_colorant.txt', 'a')
