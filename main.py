@@ -126,7 +126,9 @@ class VonKarman():
 		self.objet=np.ones((self.Ny, self.Nx))
 		for i in range(self.Ny): 
 			for j in range(self.Nx):
-				if (j*self.dx-15*self.r)**2+(i*self.dy-0.55*(self.Ly+2*self.dy))**2 < self.r**2:
+				if (j*self.dx-15*self.r)**2+(i*self.dy-0.3*(self.Ly+2*self.dy))**2 < self.r**2:
+					self.objet[i][j]=0
+				if (j*self.dx-15*self.r)**2+(i*self.dy-0.6*(self.Ly+2*self.dy))**2 < self.r**2:
 					self.objet[i][j]=0
 		self.grille_colorant = np.copy(self.objet)			
 		# Affichage
@@ -418,7 +420,7 @@ class VonKarman():
 			file_vitesse.write("file 'vitesse/image0{}.jpg'\n".format(n+1))
 			file_vitesse.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
 		else:
-			plt.savefig("image{}.jpg".format(n+1), dpi = self.dpi)
+			plt.savefig("./vitesse/image{}.jpg".format(n+1), dpi = self.dpi)
 			file_vitesse=open('video_vitesse.txt', 'a')
 			file_vitesse.write("file 'vitesse/image{}.jpg'\n".format(n+1))
 			file_vitesse.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
@@ -452,38 +454,38 @@ class VonKarman():
 
 		self.command_string += "\\( -clone {} -set delay {} \\) -swap {} +delete \\\n".format(n//self.pas_enregistrement, (t_simu-t_simu_precedemment_enregistre)*10, n//self.pas_enregistrement)
 		
-		## Enregistrement du colorant
-		plt.clf()
-		self.colorant=self.colo()
-		self.grille_colorant=np.copy(self.objet)
-		for k in range(len(self.colorant)):
-			if self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))] < 6:
-				self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))]+=1
-		plt.imshow(self.grille_colorant, origin='lower', cmap='seismic', interpolation = 'none')		
-		plt.colorbar()
-		plt.title("t = {:.2f}".format(t_simu))
-		plt.axis('image')
-		if n<10:		
-			plt.savefig("./colorant/image000{}.jpg".format(n+1), dpi = self.dpi)
-			file_colorant=open('video_colorant.txt', 'a')
-			file_colorant.write("file 'colorant/image000{}.jpg'\n".format(n+1))
-			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-			print(n)
-		elif n<100:
-			plt.savefig("./colorant/image00{}.jpg".format(n+1), dpi = self.dpi)
-			file_colorant=open('video_colorant.txt', 'a')
-			file_colorant.write("file 'colorant/image00{}.jpg'\n".format(n+1))
-			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-		elif n<1000:
-			plt.savefig("./colorant/image0{}.jpg".format(n+1), dpi = self.dpi)
-			file_colorant=open('video_colorant.txt', 'a')
-			file_colorant.write("file 'colorant/image0{}.jpg'\n".format(n+1))
-			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-		else:
-			plt.savefig("./colorant/image{}.jpg".format(n+1), dpi = self.dpi)
-			file_colorant=open('video_colorant.txt', 'a')
-			file_colorant.write("file 'colorant/image{}.jpg'\n".format(n+1))
-			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+#		## Enregistrement du colorant
+#		plt.clf()
+#		self.colorant=self.colo()
+#		self.grille_colorant=np.copy(self.objet)
+#		for k in range(len(self.colorant)):
+#			if self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))] < 6:
+#				self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))]+=1
+#		plt.imshow(self.grille_colorant, origin='lower',  cmap='afmhot', interpolation = 'none')		
+#		plt.colorbar()
+#		plt.title("t = {:.2f}".format(t_simu))
+#		plt.axis('image')
+#		if n<10:		
+#			plt.savefig("./colorant/image000{}.jpg".format(n+1), dpi = self.dpi)
+#			file_colorant=open('video_colorant.txt', 'a')
+#			file_colorant.write("file 'colorant/image000{}.jpg'\n".format(n+1))
+#			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+#			print(n)
+#		elif n<100:
+#			plt.savefig("./colorant/image00{}.jpg".format(n+1), dpi = self.dpi)
+#			file_colorant=open('video_colorant.txt', 'a')
+#			file_colorant.write("file 'colorant/image00{}.jpg'\n".format(n+1))
+#			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+#		elif n<1000:
+#			plt.savefig("./colorant/image0{}.jpg".format(n+1), dpi = self.dpi)
+#			file_colorant=open('video_colorant.txt', 'a')
+#			file_colorant.write("file 'colorant/image0{}.jpg'\n".format(n+1))
+#			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+#		else:
+#			plt.savefig("./colorant/image{}.jpg".format(n+1), dpi = self.dpi)
+#			file_colorant=open('video_colorant.txt', 'a')
+#			file_colorant.write("file 'colorant/image{}.jpg'\n".format(n+1))
+#			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
 
 	def callback_gif_end(self):
 		pass
@@ -632,7 +634,7 @@ def loop_Re():
 ini = [[35,50],[34,50],[33,50],[36,50],[37,50]]
 def single_Re(Re):
 	expand = 1. #1.5 rapport entre x et y
-	simu = VonKarman(Re = Re, Nt = 600, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5, vitesse_video = 5, colorant_initial=ini)
+	simu = VonKarman(Re = Re, Nt = 1500, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5, vitesse_video = 5, colorant_initial=ini)
 	#simu.main_loop(simu.callback_correlations_vitesse_start, simu.callback_correlations_vitesse_loop, simu.callback_correlations_vitesse_end)
 	simu.main_loop()
 single_Re(200)
