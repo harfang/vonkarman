@@ -145,7 +145,7 @@ class fonction_courant():
 		plt.clf()
 		maxi=np.max(self.psi)
 		mini=np.min(self.psi)
-		#self.psi=self.psi - np.ones((self.ny,self.nx))*(maxi+mini)/2
+		self.psi=self.psi - np.ones((self.ny,self.nx))*(maxi+mini)/2
 		plt.imshow(self.psi, origin='lower',cmap='seismic')
 		plt.colorbar()
 		plt.imshow(self.objet,alpha=0.1, cmap='gray')
@@ -155,7 +155,7 @@ class fonction_courant():
 		plt.clf()
 
 
-total=['Re = 20', 'Re = 23', 'Re = 26']
+total=['Re = 20', 'Re = 23', 'Re = 26', 'Re = 29', 'Re = 32' ]
 
 
 
