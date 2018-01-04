@@ -53,31 +53,11 @@ Plan du code :
 		construction de la matrice laplacien
 		résolution de l'équation de Poisson
 """
-
-def harmonics(freqs, spectre, cutoff_freq_low = None, cutoff_freq_high = None, return_indices = False, largeur = 100):
-	"""Renvoie la liste des maximums locaux du spectre (fréquences et amplitude), ayant une fréquence entre cutoff_freq_low et cutoff_freq_high
-	
-	largueur : largueur de chaque pic en Hz (un pic à la fréquence f est un maximum local s'il est le maximum sur l'intervalle f +- largeur"""
-	
-	cutoff_low = 0
-	if cutoff_freq_low is not None:
-		cutoff_low = np.where(freqs >= cutoff_freq_low)[0][0]
-	cutoff_high = len(freqs)-1
-	if cutoff_freq_high is not None:
-		cutoff_high = np.where(freqs <= cutoff_freq_high)[0][-1]
-	order = int(largeur/abs(freqs[1]-freqs[0]))
-	indices = scipy.signal.argrelextrema(spectre[cutoff_low:cutoff_high], np.greater, order=order)[0]
-	if return_indices:
-		indices += cutoff_low
-		return freqs[cutoff_low:cutoff_high][indices], spectre[cutoff_low:cutoff_high][indices], indices
-	else:
-		return freqs[cutoff_low:cutoff_high][indices], spectre[cutoff_low:cutoff_high][indices]
-
 """
 ---------------------------------------------------------------------------------
-|																				|
-|				CONSTANTES ET OBJETS											|
-|																				|
+|										|										|
+|				CONSTANTES ET OBJETS				|
+|										|										|
 ---------------------------------------------------------------------------------
 """
 
@@ -117,8 +97,6 @@ class VonKarman():
 		self.phi = np.zeros((self.Ny, self.Nx))
 		self.ustar = np.zeros((self.Ny, self.Nx))
 		self.vstar = np.zeros((self.Ny, self.Nx))
-		self.colorant=[]
-		self.colorant_initial =	colorant_initial	
 		#Définition de l'objet 
 		## Définition de l'objet
 		#On place le centre de l'objet en -8r, Ly/2)
@@ -126,37 +104,33 @@ class VonKarman():
 		self.objet=np.ones((self.Ny, self.Nx))
 		for i in range(self.Ny): 
 			for j in range(self.Nx):
-				if (j*self.dx-15*self.r)**2+(i*self.dy-0.3*(self.Ly+2*self.dy))**2 < self.r**2:
+				if (j*self.dx-15*self.r)**2+(i*self.dy-0.5*(self.Ly+2*self.dy))**2 < self.r**2:
 					self.objet[i][j]=0
-				if (j*self.dx-15*self.r)**2+(i*self.dy-0.6*(self.Ly+2*self.dy))**2 < self.r**2:
-					self.objet[i][j]=0
-		self.grille_colorant = np.copy(self.objet)			
 		# Affichage
 		self.dirname = ""
 		self.root_dir = ""
 		self.dpi = int(dpi)
-		for k in self.colorant_initial:
-			self.colorant.append([k[0],k[1]])		
 		# Laplacien
 		self.construction_matrice_laplacien_2D()
-	
+		self.construction_matrice_laplacien_2D_vitesse()
+
 	"""
 	---------------------------------------------------------------------------------
-	|																				|
-	|				LES OPÉRATEURS BASIQUES											|
-	|																				|
+	|										|										|
+	|				LES OPÉRATEURS BASIQUES				|
+	|										|										|
 	---------------------------------------------------------------------------------
 	"""
 
 
 	def divergence(self, u, v):
-		"""Renvoie la divergence du champ de vecteurs (u, v). Schéma centré (ordre 2). La taille de la matrice est Ny*Nx"""
+		"""Renvoie la divergence du champ de vecteurs (u, v). Schéma centré (ordre 2). La taille de la matrice est Ny*Nx. L'axe des y est aussi orienté vers le bas."""
 		div = np.zeros((self.Ny, self.Nx))
 		div[1:-1, 1:-1] = ((u[1:-1, 2:] - u[1:-1, :-2])/(self.dx*2) +(v[2:, 1:-1] - v[:-2, 1:-1])/(self.dy*2))
 		return div
 
 	def grad(self, f):
-		"""Renvoie le gradient de f. Schéma centré (ordre 2)."""
+		"""Renvoie le gradient de f. Schéma centré (ordre 2). L'axe des y est orienté vers le bas."""
 		grad_f_x = np.zeros((self.Ny, self.Nx))
 		grad_f_y = np.zeros((self.Ny, self.Nx))
 
@@ -175,9 +149,9 @@ class VonKarman():
 
 	"""
 	---------------------------------------------------------------------------------
-	|																				|
-	|				AUTRES OBSERVABLES												|
-	|																				|
+	|										|										|
+	|				AUTRES OBSERVABLES				|
+	|										|										|
 	---------------------------------------------------------------------------------
 	"""
 	
@@ -210,9 +184,9 @@ class VonKarman():
 
 	"""
 	---------------------------------------------------------------------------------
-	|																				|
-	|				LES CONDITIONS LIMITES											|
-	|																				|
+	|										|											|
+	|				LES CONDITIONS LIMITES				|
+	|										|										|
 	---------------------------------------------------------------------------------
 	"""
 	
@@ -225,9 +199,9 @@ class VonKarman():
 		dt_adv = facteur_de_precaution_cfl * min(self.dx, self.dy)/max(u_max, v_max, 1)
 
 		#2. Diffusion
-		dt_diffusion = facteur_de_precaution_cfl * self.Re*min(self.dx**2, self.dy**2)/10 #/4 au lieu de 10 ; /5 : trop peu pour Re ~ 60, /10 : mieux mais à tester
+		dt_diffusion = facteur_de_precaution_cfl * self.Re*min(self.dx**2, self.dy**2)/10 
 	
-		#3. min
+		#3. minimum entre les deux
 		dt_min = min(dt_diffusion, dt_adv)
 		self.dt = dt_min
 
@@ -235,12 +209,6 @@ class VonKarman():
 		"""Modifie les tableaux pour satifsaire les conditions aux limites de la soufflerie"""
 		self.ustar[:, 1] = 1 #self.u0 #la vitesse est de 1 en entrée
 		self.vstar[:, 1] = 0 #la vitesse v est nulle en entrée
-		#self.ustar[0,1:-1] = self.ustar[2,1:-1] #en haut la contrainte est nulle
-		#self.vstar[:2, :] = 0 #en haut, la vitesse normale est nulle
-		#self.ustar[-1,1:-1]= self.ustar[-3,1:-1] #en bas la contrainte est nulle
-		#self.vstar[self.Ny-2:, :] = 0 #en bas, la vitesse normale est nulle
-		#self.ustar[:, self.Nx-1] = self.ustar[:, self.Nx-2] #dérivée de u par rapport à x nulle à la sortie -2 ou -3 ?
-		#self.vstar[:, self.Nx-1] = self.vstar[:, self.Nx-2] #dérivée de v par rapport à x nulle à la sortie
 		self.vstar[1, :] = 0
 		self.vstar[-2, :] = 0
 			
@@ -249,14 +217,12 @@ class VonKarman():
 		self.ustar *= self.objet
 		self.vstar *= self.objet
 
-
 	def cl_phi(self):
 		"""Modifie les tableaux pour satifsaire les conditions aux limites de l'objet"""
 		self.phi[0,:] = self.phi[2,:]
 		self.phi[-1,:] = self.phi[-3,:]
 		self.phi[:,0] = self.phi[:,2]
 		self.phi[:,-1] = -self.phi[:,-2]
-		#quelle est alors la valeur à mettre dans la dernière colonne ? on garde 0 ?
 
 	def points_fantome_vitesse(self, u, v):
 		u[:, 0] = 2*u[:, 1] - u[:, 2] #la vitesse est de 1 en entrée
@@ -268,17 +234,18 @@ class VonKarman():
 		u[:, -1] = u[:, -2] #dérivée de u par rapport à x nulle à la sortie
 		v[:, -1] = v[:, -2] #dérivée de v par rapport à x nulle à la sortie
 
+
+
 	"""
 	---------------------------------------------------------------------------------
-	|																				|
-	|				LES GROSSES FONCTIONS											|
-	|																				|
+	|										|										|
+	|				LES GROSSES FONCTIONS				|
+	|										|										|
 	---------------------------------------------------------------------------------
 	"""
 
 	def calcul_a_conv(self):
-		"""Calcul l'accélération convective u grad u"""
-		#problème : il utilise une autre convention que la notre c'est-à-dire que pour lui x est le premier indice. 
+		"""permet de calculer l'accélération convective"""
 
 		Resu = np.zeros((self.Ny, self.Nx))
 		Resv = np.zeros((self.Ny, self.Nx))
@@ -288,7 +255,7 @@ class VonKarman():
 		Mx2 = np.sign(np.sign(self.u[1:-1,1:-1]) + 1.)
 		Mx1 = 1. - Mx2
 
-		# Matrice avec des 1 quand on va en haut, 
+		# Matrice avec des 1 quand on va en haut, 		
 		# 0 en bas ou au centre
 		My2 = np.sign(np.sign(self.v[1:-1,1:-1]) + 1.)
 		My1 = 1. - My2
@@ -297,7 +264,7 @@ class VonKarman():
 		au = abs(self.u[1:-1,1:-1])*self.dt/self.dx
 		av = abs(self.v[1:-1,1:-1])*self.dt/self.dy
 		
-		# Matrices des coefficients qui va pondérer la vitesse des points respectivement
+		# Matrices des coefficients qui va pondérer la vitesse des points respectivement		
 		# central, exterieur, meme x, meme y	 
 		Cc = (1. - au) * (1. - av) 
 		Ce = au * av
@@ -316,7 +283,7 @@ class VonKarman():
 						   Cmy * (Mx1 * self.u[1:-1, 2:] +
 								  Mx2 * self.u[1:-1, :-2]))
 	
-		Resv[1:-1,1:-1] = (Cc * self.v[1:-1, 1:-1] +			
+		Resv[1:-1,1:-1] = (Cc * self.v[1:-1, 1:-1] +					
 						   Ce * (Mx1*My1 * self.v[2:, 2:] + 
 								 Mx1*My2 * self.v[:-2, 2:] +
 								 Mx2*My1 * self.v[2:, :-2] +
@@ -339,7 +306,8 @@ class VonKarman():
 		DXX2 = DXX.todense()
 		## Conditions aux limites : Neumann à gauche et Dirichlet à droite
 		DXX2[0,1]     = 2.*dx_2  # SF left : au lieu d'un 1 on met un 2 à la deuxième colonne première ligne
-		DXX2[-1,-1] = -3*dx_2  # SF right 0 ou -1 ???
+		DXX2[-1,-1] = -3*dx_2  # SF right 
+
 		# Axe Y
 		datay = [np.ones(self.ny), -2*np.ones(self.ny), np.ones(self.ny)] 
 		DYY = sp.dia_matrix((datay,offsets), shape=(self.ny,self.ny)) * dy_2	
@@ -355,20 +323,75 @@ class VonKarman():
 		phi_flat = linalg.spsolve(self.matrice_laplacien_2D, div_flat)
 		self.phi = np.zeros((self.Ny,self.Nx))
 		self.phi[1:-1,1:-1] = phi_flat.reshape((self.ny,self.nx))		
+	
+	def construction_matrice_laplacien_2D_vitesse(self):
+		dx_2 = 1/((self.dx)**2)
+		dy_2 = 1/((self.dy)**2)
+		offsets = np.array([-1,0,1])                    
+		# Axe x
+		datax = [np.ones(self.nx), -2*np.ones(self.nx), np.ones(self.nx)]
+		UXX = sp.dia_matrix((datax,offsets), shape=(self.nx,self.nx)) * dx_2
+		UXX2 = UXX.todense()
+		VXX = sp.dia_matrix((datax,offsets), shape=(self.nx,self.nx)) * dx_2
+		VXX2 = VXX.todense()
+		## Conditions aux limites : u=1 et v=0 à gauche, dérivée nulle à droite
+		UXX2[0,0] = 0
+		UXX2[0,1] = 0 
+		UXX2[-1,-1] = -1.* dx_2
+		VXX2[0,0] = 0
+		VXX2[0,1] = 0 
+		VXX2[-1,-1] = -1.* dx_2
+		# Axe Y
+		datay = [np.ones(self.ny), -2*np.ones(self.ny), np.ones(self.ny)] 
+		UYY = sp.dia_matrix((datay,offsets), shape=(self.ny,self.ny)) * dy_2	
+		UYY2 = UYY.todense() 
+		VYY = sp.dia_matrix((datay,offsets), shape=(self.ny,self.ny)) * dy_2	
+		VYY2 = VYY.todense() 
+		## Conditions aux limites : v nulle et dérivée par rapport à y de u nulle 
+		UYY2[0,1] = 2.*dy_2  # en haut
+		VYY2[0,0] = 0
+		VYY2[0,1] = 0
+		UYY2[-1, self.ny-2] = 2.*dy_2  # en bas
+		VYY2[-1, self.ny-2] = 0
+		VYY2[-1, self.ny-1] = 0
+		self.matrice_laplacien_2D_u = sp.kron(sp.eye(self.ny, self.ny), UXX2) + sp.kron(UYY2, sp.eye(self.nx, self.nx)) #sparse
+		self.matrice_laplacien_2D_v = sp.kron(sp.eye(self.ny, self.ny), VXX2) + sp.kron(VYY2, sp.eye(self.nx, self.nx)) #sparse
+		
+	def navier_stokes(self, Resu, Resv):
+		"""effectue l'équation de N-S. Pour de bas Reynolds, on  résout l'équation en implicite. """
+		if self.Re> 100:
+			self.ustar = np.zeros((self.Ny, self.Nx))
+			self.vstar = np.zeros((self.Ny, self.Nx))
+			self.ustar[1:-1,1:-1] = Resu[1:-1,1:-1]+self.dt*self.laplacien(self.u)[1:-1,1:-1]/self.Re
+			self.vstar[1:-1,1:-1] = Resv[1:-1,1:-1]+self.dt*self.laplacien(self.v)[1:-1,1:-1]/self.Re
+			return(self.ustar, self.vstar)
+		else:
+			u_flat = Resu[1:-1,1:-1].flatten()
+			v_flat = Resv[1:-1,1:-1].flatten()
+			operateur_u = sp.kron(sp.eye(self.ny,self.ny), sp.eye(self.nx, self.nx))-self.dt*self.matrice_laplacien_2D_u/self.Re
+			operateur_v = sp.kron(sp.eye(self.ny,self.ny), sp.eye(self.nx, self.nx))-self.dt*self.matrice_laplacien_2D_v/self.Re
+			ustar_flat = linalg.spsolve(operateur_u, u_flat)
+			vstar_flat = linalg.spsolve(operateur_v, v_flat)
+			self.ustar = np.zeros((self.Ny, self.Nx))
+			self.vstar = np.zeros((self.Ny, self.Nx))
+			self.ustar[1:-1,1:-1] = ustar_flat.reshape((self.ny, self.nx))
+			self.vstar[1:-1,1:-1] = vstar_flat.reshape((self.ny, self.nx))
+			return(self.ustar, self.vstar)
+
 
 	"""
 	---------------------------------------------------------------------------------
-	|																				|
-	|				AFFICHAGE ET ENREGISTREMENT										|
-	|																				|
+	|										|										|
+	|				AFFICHAGE ET ENREGISTREMENT			|
+	|										|										|
 	---------------------------------------------------------------------------------
 	"""
-	
+
+		
 	def create_working_dir(self):
 		self.root_dir = os.path.dirname(os.path.realpath(__file__))
 		self.dirname = self.root_dir+"/"+str(time.strftime("%Y-%m-%d - %X"))+" - Re = "+str(self.Re)+" - Nt = "+str(self.Nt)
-		if not os.path.exists(self.dirname):
-			os.makedirs(self.dirname)
+		if not os.path.exists(self.dirname): os.makedirs(self.dirname)
 		else:
 			timestamp = time.time()
 			self.dirname += str(timestamp-int(timestamp))[1:]
@@ -377,26 +400,18 @@ class VonKarman():
 		os.chdir(self.dirname) # change le répertoire de travail
 
 		np.savetxt("parameters.txt", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re]).transpose(), header = "Lx \t Ly \t Nx \t Ny \t Nt \t r \t Re \n", newline="\t")
-	
-	""" ENREGISTREMENT DE GIF ANIME """
-	
+
 	def callback_gif_start(self):
 		"""Création du dossier pour l'enregistrement"""
 		self.create_working_dir()
-	
-		## Préparation de la création d'un gif animé
-		self.command_string = "convert *.jpg -loop 0 \\\n"
-
 		""" ATTENTION LA LIGNE QUI SUIT VA PROVOQUER UNE ERREUR SI LA NORME DE LA VITESSE DEPASSE vmax"""
 		## Normalisation des couleurs
 		self.color_norm = matplotlib.colors.Normalize(vmin=0.,vmax=2.1)
 		self.color_norm_w = matplotlib.colors.Normalize(vmin=-13,vmax=13)
-		self.color_norm_colorant= matplotlib.colors.Normalize(vmin=-1,vmax=5)
-		
 		## Enregistrement de la vorticité
 		os.mkdir("./w/")
 		os.mkdir("./vitesse/")
-		os.mkdir("./colorant/")
+
 	def callback_gif_loop(self, n, t_simu, t_simu_precedemment_enregistre):
 		plt.clf()
 		# Enregistrement de la norme de la vitesse
@@ -451,118 +466,48 @@ class VonKarman():
 			file_w=open('video_w.txt', 'a')
 			file_w.write("file 'w/image{}.jpg'\n".format(n+1))
 			file_w.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-
-		self.command_string += "\\( -clone {} -set delay {} \\) -swap {} +delete \\\n".format(n//self.pas_enregistrement, (t_simu-t_simu_precedemment_enregistre)*10, n//self.pas_enregistrement)
-		
-#		## Enregistrement du colorant
-#		plt.clf()
-#		self.colorant=self.colo()
-#		self.grille_colorant=np.copy(self.objet)
-#		for k in range(len(self.colorant)):
-#			if self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))] < 6:
-#				self.grille_colorant[int(round(self.colorant[k][0]))][int(round(self.colorant[k][1]))]+=1
-#		plt.imshow(self.grille_colorant, origin='lower',  cmap='afmhot', interpolation = 'none')		
-#		plt.colorbar()
-#		plt.title("t = {:.2f}".format(t_simu))
-#		plt.axis('image')
-#		if n<10:		
-#			plt.savefig("./colorant/image000{}.jpg".format(n+1), dpi = self.dpi)
-#			file_colorant=open('video_colorant.txt', 'a')
-#			file_colorant.write("file 'colorant/image000{}.jpg'\n".format(n+1))
-#			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-#			print(n)
-#		elif n<100:
-#			plt.savefig("./colorant/image00{}.jpg".format(n+1), dpi = self.dpi)
-#			file_colorant=open('video_colorant.txt', 'a')
-#			file_colorant.write("file 'colorant/image00{}.jpg'\n".format(n+1))
-#			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-#		elif n<1000:
-#			plt.savefig("./colorant/image0{}.jpg".format(n+1), dpi = self.dpi)
-#			file_colorant=open('video_colorant.txt', 'a')
-#			file_colorant.write("file 'colorant/image0{}.jpg'\n".format(n+1))
-#			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-#		else:
-#			plt.savefig("./colorant/image{}.jpg".format(n+1), dpi = self.dpi)
-#			file_colorant=open('video_colorant.txt', 'a')
-#			file_colorant.write("file 'colorant/image{}.jpg'\n".format(n+1))
-#			file_colorant.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-
 	def callback_gif_end(self):
-		pass
-#		self.command_string += " movie.gif"
-#		os.system(self.command_string)
-#		os.chdir(self.dirname+"/w/")
-#		os.system(self.command_string)
-#		os.chdir(self.dirname)
-#		with open("commandstring.txt", "w") as saved_commandstring:
-#			saved_commandstring.write(self.command_string)
-#		print("Données enregistrées dans {}.".format(self.dirname))
-		
-	""" CORRELATIONS DE VITESSE"""
+		np.save("reprise.npy", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re, self.pas_enregistrement, self.dpi, self.vitesse_video, self.t_simu]))
 	
-	def callback_correlations_vitesse_start(self):
-		self.create_working_dir()
-		self.amplitude_oscillations = np.zeros((self.Nt//self.pas_enregistrement))
-		self.liste_t = np.zeros((self.Nt//self.pas_enregistrement))
-		
-		ny_test = int(self.r/self.dy)+5
-		nx_test = int(self.r/self.dx)+5
-		self.objet_test = np.ones((ny_test, nx_test))
-		for i in range(ny_test):
-			for j in range(nx_test):
-				if (j*self.dx-(nx_test*self.dx)/2)**2+(i*self.dy-(ny_test*self.dy)/2)**2 < self.r**2:
-					self.objet_test[i][j] = 0.
-		self.index_bord_calcul_correlations = np.argmin(self.objet, axis = 1).max()+int(6*self.r/self.dy)
-		
-	def callback_correlations_vitesse_loop(self, n, t_simu, t_simu_precedemment_enregistre):
-		norme_vitesse = np.sqrt(self.u[1:-1,self.index_bord_calcul_correlations:-1]**2+self.v[1:-1,self.index_bord_calcul_correlations:-1]**2)
-		corr = scipy.signal.correlate2d(norme_vitesse, self.objet_test, mode = "same", boundary = "symm")
-		self.amplitude_oscillations[n//self.pas_enregistrement] = float(np.argmin(corr, axis = 0)[0])
-		self.liste_t[n//self.pas_enregistrement] = t_simu
-		
-		"""
-		plt.clf()
-		plt.imshow(corr, origin='lower', cmap='bwr', interpolation = 'none')
-		plt.colorbar()
-		plt.title("t = {:.2f}".format(t_simu))
-		plt.axis('image')
+	def callback_save_start(self):
+		#Création du dossier pour l'enregistrement
+		#self.create_working_dir()
+		## Enregistrement de la vitesse
+		os.mkdir("./u/")
+		os.mkdir("./v/")
+	
+	def callback_save_loop(self, n):
+		# Enregistrement de u
+		os.chdir(self.dirname+"/u/")
 		if n<10:		
-			plt.savefig("image000{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+			np.save("000{}.npy".format(n+1), self.u)
 		elif n<100:
-			plt.savefig("image00{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+			np.save("00{}.npy".format(n+1), self.u)
 		elif n<1000:
-			plt.savefig("image0{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
+			np.save("0{}.npy".format(n+1), self.u)
 		else:
-			plt.savefig("image{}_t={}_Re={}.jpg".format(n+1, t_simu, self.Re), dpi = self.dpi)
-		"""
-		
-	def callback_correlations_vitesse_end(self):
-		np.savetxt("amplitude_oscillations.txt", np.array(self.amplitude_oscillations))
-		np.savetxt("liste_t.txt", np.array(self.liste_t))
-		plt.clf()
-		plt.plot(self.liste_t[100:], self.amplitude_oscillations[100:])
-		plt.savefig("plot_amplitude.jpg")
-		plt.clf()
-		"""
-		fft_amplitude = fft.fft(self.amplitude_oscillations)
-		freqs = fft.fftfreq(len(self.amplitude_oscillations))
-		plt.semilogy(fft.fftshift(freqs), fft.fftshift(fft_amplitude*fft_amplitude.conjugate()))
-		"""
-		#plt.plot(self.liste_t[100:], scipy.signal.correlate(self.amplitude_oscillations[100:], self.amplitude_oscillations[100:], mode = "same"))
-		freqs = 2*math.pi*np.logspace(-2, 2, 5000)
-		pgram = scipy.signal.lombscargle(np.array(self.liste_t, dtype = 'float64')[100:], np.array(self.amplitude_oscillations, dtype = 'float64')[100:], freqs) #[200:]
-		plt.semilogy(freqs, pgram)
-		plt.savefig("plot_amplitude_autocorrelation.jpg")
-		
-		freqs_max, spectre_max = harmonics(freqs, pgram, largeur = 0.1)
-		print(freqs_max)
-		np.savetxt("freqs_max.txt", freqs_max)
-		
+			np.save("{}.npy".format(n+1), self.u)
+		os.chdir(self.dirname)
+				
+		# Enregistrement de v
+		os.chdir(self.dirname+"/v/")
+		if n<10:
+			np.save("000{}.npy".format(n+1), self.v)
+		elif n<100:
+			np.save("00{}.npy".format(n+1), self.v)
+		elif n<1000:
+			np.save("0{}.npy".format(n+1), self.v)
+		else:
+			np.save("{}.npy".format(n+1), self.v)
+		os.chdir(self.dirname)
+	
+	def callback_save_end(self):
+		pass
 	"""
 	---------------------------------------------------------------------------------
-	|																				|
-	|				BOUCLE PRINCIPALE												|
-	|																				|
+	|										|										|
+	|				BOUCLE PRINCIPALE				|
+	|										|										|
 	---------------------------------------------------------------------------------
 	"""
 	
@@ -575,13 +520,13 @@ class VonKarman():
 		if f_callback_end == None:
 			f_callback_end = self.callback_gif_end
 		
-		t_simu = 0
-		t_simu_precedemment_enregistre = 0
+		self.t_simu = 0
+		self.t_simu_precedemment_enregistre = 0
 
 		t_i = time.time()
 		
 		f_callback_start()
-
+		self.callback_save_start()
 		## Boucle principale
 		for n in range(self.Nt):
 			#Calcul du nouveau dt pour respecter les conditions CFL
@@ -589,8 +534,8 @@ class VonKarman():
 			#Calcul de l'accélération convective
 			Resu, Resv = self.calcul_a_conv()
 			#Navier-Stokes
-			self.ustar[1:-1,1:-1] = Resu[1:-1,1:-1]+self.dt*self.laplacien(self.u)[1:-1,1:-1]/self.Re
-			self.vstar[1:-1,1:-1] = Resv[1:-1,1:-1]+self.dt*self.laplacien(self.v)[1:-1,1:-1]/self.Re
+			self.ustar, self.vstar = self.navier_stokes(Resu, Resv)			
+			
 			
 			#Conditions aux limites
 			## Soufflerie numérique
@@ -611,30 +556,31 @@ class VonKarman():
 			self.v[1:-1, 1:-1] = self.vstar[1:-1, 1:-1] - gradphi_y[1:-1, 1:-1]
 
 			#Fin du calcul
-			t_simu += self.dt
+			self.t_simu += self.dt
 			self.points_fantome_vitesse(self.u, self.v)
 	
 			## Enregistrement
 			if n%self.pas_enregistrement == 0:
-				print(n, 'sur', self.Nt)
-				f_callback_loop(n, t_simu, t_simu_precedemment_enregistre)
-				t_simu_precedemment_enregistre = t_simu
-				
+				print(n, 'sur', self.Nt, " avec un reynolds de ", self.Re)
+				f_callback_loop(n, self.t_simu, self.t_simu_precedemment_enregistre)
+				self.t_simu_precedemment_enregistre = self.t_simu
+				self.callback_save_loop(n)
+		np.save("objet.npy", self.objet)
+		self.callback_save_loop(self.Nt-1)
 		f_callback_end()
 		print("Simulation effectuée en {} s.".format(time.time()-t_i))
 
 
 def loop_Re():
-	Re_list = np.linspace(10, 100, 8)
+	Re_list = np.linspace(4,200,50)
 	for Re in Re_list:
-		simu = VonKarman(Re = Re, Nt = 5, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5)
-		simu.main_loop(dpi = 72)
+		simu = VonKarman(Re = Re, Nt = 2000, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5, vitesse_video = 5)
+		simu.main_loop()
 		os.chdir(simu.root_dir)
 
-ini = [[35,50],[34,50],[33,50],[36,50],[37,50]]
 def single_Re(Re):
 	expand = 1. #1.5 rapport entre x et y
-	simu = VonKarman(Re = Re, Nt = 1500, Nx = expand*300, Ny = expand*70, pas_enregistrement = 5, r = 0.5, vitesse_video = 5, colorant_initial=ini)
+	simu = VonKarman(Re = Re, Nt = 2000, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5, vitesse_video = 5)
 	#simu.main_loop(simu.callback_correlations_vitesse_start, simu.callback_correlations_vitesse_loop, simu.callback_correlations_vitesse_end)
 	simu.main_loop()
-single_Re(200)
+single_Re(500)
