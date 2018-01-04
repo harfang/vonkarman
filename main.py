@@ -58,12 +58,30 @@ class fonction_courant():
 		grad_f_x[:, 1:-1] = (f[:, 2:] - f[:, :-2])/(2*self.dx)
 		return grad_f_x, grad_f_y
 
+	def grad2(self, f):
+		"""Renvoie le gradient de f. Schéma centré (ordre 2). L'axe des y est orienté vers le bas."""
+		grad_f_x = np.zeros((self.ny, self.nx))
+		grad_f_y = np.zeros((self.ny, self.nx))
+
+		grad_f_y[1:-1, :] = (f[2:, :] - f[:-2, :])/(2*self.dy)
+		grad_f_x[:, 1:-1] = (f[:, 2:] - f[:, :-2])/(2*self.dx)
+		return grad_f_x, grad_f_y
+
 	def rotationnel(self):
 		"""Renvoie la norme du vecteur vorticité selon e_z rentrant."""
 		u_x, u_y = self.grad(self.u)
 		v_x, v_y = self.grad(self.v)
 		self.w = v_x-u_y
 		return self.w
+
+	def laplacien(self, f):
+		"""Renvoie le laplacien de la fonction scalaire f"""
+		laplacien_f = np.zeros((self.ny, self.nx))
+		dx_2 = 1/(self.dx)**2
+		dy_2 = 1/(self.dy)**2
+		coef0 = -2*(dx_2 + dy_2)  
+		laplacien_f[1:-1,1:-1] = dy_2*(f[2:,1:-1]+f[:-2,1:-1])+dx_2*(f[1:-1, 2:]+f[1:-1,:-2])+coef0*f[1:-1,1:-1]
+		return laplacien_f
 
 	def construction_matrice_laplacien_2D(self):
 		"""Construit et renvoie la matrice sparse du laplacien 2D pour psi"""
@@ -98,15 +116,15 @@ class fonction_courant():
 
 		#A droite, on a v non nul à priori donc, au niveaudes points REELS de w cela donne
 		for i in range(self.Ny):
-			self.w[i,-2] += -2*self.v[i,-1]/self.dx
+			self.w[i,-2] += 2*self.v[i,-1]/self.dx
 	
 		#En haut, u est non nul également aussi
 		for j in range(self.Nx):
-			self.w[1,j] += 2*self.u[1,j]/self.dy
+			self.w[1,j] += -2*self.u[1,j]/self.dy
 
 		#Enfin, u est non nul en bas donc
 		for j in range(self.Nx):
-			self.w[-2,j] += -2*self.u[-2,j]/self.dy
+			self.w[-2,j] += 2*self.u[-2,j]/self.dy
 
 	def solve_laplacien(self, div):
 		"""Renvoie psi telle que laplacien(psi) = div, avec les conditions aux limites données par cl_phi (cl_phi travaille directement sur les tableaux). La taille de div est nx*ny, celle de lapacien son carré"""
@@ -122,71 +140,22 @@ class fonction_courant():
 		self.construction_matrice_laplacien_2D()
 		self.w = self.rotationnel()
 		self.mise_a_jour_w()
-		self.w=self.w*self.objet
+		#self.w=self.w*self.objet
 		self.solve_laplacien(-self.w[1:-1,1:-1])	
 		plt.clf()
 		maxi=np.max(self.psi)
 		mini=np.min(self.psi)
-		self.psi=self.psi - np.ones((self.ny,self.nx))*(maxi+mini)/2
+		#self.psi=self.psi - np.ones((self.ny,self.nx))*(maxi+mini)/2
 		plt.imshow(self.psi, origin='lower',cmap='seismic')
 		plt.colorbar()
 		plt.imshow(self.objet,alpha=0.1, cmap='gray')
 		plt.title("Re = {}".format(self.Re))
 		plt.axis('image')
-		plt.savefig("images/Re={}_t={}.jpg".format(self.Re, self.t_simu), dpi= self.dpi)
+		plt.savefig("Fonctions_courant/Re={}_t={}.jpg".format(self.Re, self.t_simu), dpi= self.dpi)
+		plt.clf()
 
 
-
-total=['2017-12-29 - 14:21:43 - Re = 4.0 - Nt = 2000',
-'2017-12-29 - 14:50:58 - Re = 8.0 - Nt = 2000',
-'2017-12-29 - 15:20:23 - Re = 12.0 - Nt = 2000',
-'2017-12-29 - 15:49:37 - Re = 16.0 - Nt = 2000',
-'2017-12-29 - 16:18:59 - Re = 20.0 - Nt = 2000',
-'2017-12-29 - 16:48:31 - Re = 24.0 - Nt = 2000',
-'2017-12-29 - 17:17:18 - Re = 28.0 - Nt = 2000',
-'2017-12-29 - 17:46:32 - Re = 32.0 - Nt = 2000',
-'2017-12-29 - 18:16:03 - Re = 36.0 - Nt = 2000',
-'2017-12-29 - 18:43:28 - Re = 40.0 - Nt = 2000',
-'2017-12-29 - 19:10:51 - Re = 44.0 - Nt = 2000',
-'2017-12-29 - 19:39:21 - Re = 48.0 - Nt = 2000',
-'2017-12-29 - 20:10:48 - Re = 52.0 - Nt = 2000',
-'2017-12-29 - 20:39:41 - Re = 56.0 - Nt = 2000',
-'2017-12-29 - 21:06:08 - Re = 60.0 - Nt = 2000',
-'2017-12-29 - 21:32:40 - Re = 64.0 - Nt = 2000',
-'2017-12-29 - 21:59:14 - Re = 68.0 - Nt = 2000',
-'2017-12-29 - 22:25:56 - Re = 72.0 - Nt = 2000',
-'2017-12-29 - 22:55:16 - Re = 76.0 - Nt = 2000',
-'2017-12-29 - 23:23:43 - Re = 80.0 - Nt = 2000',
-'2017-12-29 - 23:50:50 - Re = 84.0 - Nt = 2000',
-'2017-12-30 - 00:18:54 - Re = 88.0 - Nt = 2000',
-'2017-12-30 - 00:47:21 - Re = 92.0 - Nt = 2000',
-'2017-12-30 - 01:13:57 - Re = 96.0 - Nt = 2000',
-'2017-12-30 - 01:41:02 - Re = 100.0 - Nt = 2000',
-'2017-12-30 - 02:08:02 - Re = 104.0 - Nt = 2000',
-'2017-12-30 - 02:18:22 - Re = 108.0 - Nt = 2000',
-'2017-12-30 - 02:28:44 - Re = 112.0 - Nt = 2000',
-'2017-12-30 - 02:38:46 - Re = 116.0 - Nt = 2000',
-'2017-12-30 - 02:48:47 - Re = 120.0 - Nt = 2000',
-'2017-12-30 - 02:58:51 - Re = 124.0 - Nt = 2000',
-'2017-12-30 - 03:08:55 - Re = 128.0 - Nt = 2000',
-'2017-12-30 - 03:18:55 - Re = 132.0 - Nt = 2000',
-'2017-12-30 - 03:28:51 - Re = 136.0 - Nt = 2000',
-'2017-12-30 - 03:38:49 - Re = 140.0 - Nt = 2000',
-'2017-12-30 - 03:48:47 - Re = 144.0 - Nt = 2000',
-'2017-12-30 - 03:59:00 - Re = 148.0 - Nt = 2000',
-'2017-12-30 - 04:09:14 - Re = 152.0 - Nt = 2000',
-'2017-12-30 - 04:19:21 - Re = 156.0 - Nt = 2000',
-'2017-12-30 - 04:29:20 - Re = 160.0 - Nt = 2000',
-'2017-12-30 - 04:39:22 - Re = 164.0 - Nt = 2000',
-'2017-12-30 - 04:49:26 - Re = 168.0 - Nt = 2000',
-'2017-12-30 - 04:59:29 - Re = 172.0 - Nt = 2000',
-'2017-12-30 - 05:09:24 - Re = 176.0 - Nt = 2000',
-'2017-12-30 - 05:19:20 - Re = 180.0 - Nt = 2000',
-'2017-12-30 - 05:29:14 - Re = 184.0 - Nt = 2000',
-'2017-12-30 - 05:39:10 - Re = 188.0 - Nt = 2000',
-'2017-12-30 - 05:49:04 - Re = 192.0 - Nt = 2000',
-'2017-12-30 - 05:59:01 - Re = 196.0 - Nt = 2000',
-'2017-12-30 - 06:08:58 - Re = 200.0 - Nt = 2000',]
+total=['Re = 20', 'Re = 23', 'Re = 26']
 
 
 
