@@ -63,7 +63,7 @@ Plan du code :
 
 class VonKarman():
 
-	def __init__(self, Lx = 30.0, Ly = 7.0, Nx = 150, Ny=35, Nt=1200, r = 0.35, Re = 100, pas_enregistrement = 5, dpi = 100, vitesse_video = 5, colorant_initial= []):
+	def __init__(self, Lx = 30.0, Ly = 10.0, Nx = 150, Ny=35, Nt=1200, r = 0.35, Re = 100, pas_enregistrement = 5, dpi = 100, vitesse_video = 5, colorant_initial= []):
 		## Definition des constantes
 		self.Lx = Lx
 		self.Ly = Ly
@@ -82,7 +82,7 @@ class VonKarman():
 		self.dy = self.Ly/(self.ny-1)
 
 		# Constantes physiques
-		self.Re = Re
+		self.Re = int(Re)
 		self.r = r # dimension de l'obstacle
 		if 4*r > Ly or 10*r > Lx:
 			print("ERREUR SUR r : r > Ly or r > Lx")
@@ -104,7 +104,7 @@ class VonKarman():
 		self.objet=np.ones((self.Ny, self.Nx))
 		for i in range(self.Ny): 
 			for j in range(self.Nx):
-				if (j*self.dx-15*self.r)**2+(i*self.dy-0.5*(self.Ly+2*self.dy))**2 < self.r**2:
+				if (j*self.dx-12*self.r)**2+(i*self.dy-0.51*(self.Ly+2*self.dy))**2 < self.r**2:
 					self.objet[i][j]=0
 		# Affichage
 		self.dirname = ""
@@ -390,56 +390,58 @@ class VonKarman():
 		
 	def create_working_dir(self):
 		self.root_dir = os.path.dirname(os.path.realpath(__file__))
-		self.dirname = self.root_dir+"/"+str(time.strftime("%Y-%m-%d - %X"))+" - Re = "+str(self.Re)+" - Nt = "+str(self.Nt)
-		if not os.path.exists(self.dirname): os.makedirs(self.dirname)
-		else:
-			timestamp = time.time()
-			self.dirname += str(timestamp-int(timestamp))[1:]
-			os.makedirs(self.dirname)
-	
+		self.dirname = self.root_dir+"/"+str("Re = "+str(self.Re))
+		while os.path.exists(self.dirname):
+			self.dirname += '_1'
+
+		os.makedirs(self.dirname)
+		file_nom=open('nom_dossier.txt', 'a')
+		file_nom.write(self.dirname+'\n')
+		file_nom.close()
 		os.chdir(self.dirname) # change le répertoire de travail
 
 		np.savetxt("parameters.txt", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re]).transpose(), header = "Lx \t Ly \t Nx \t Ny \t Nt \t r \t Re \n", newline="\t")
 
-	def callback_gif_start(self):
+	
+	def callback_video_start(self):
 		"""Création du dossier pour l'enregistrement"""
 		self.create_working_dir()
+	
+		## Préparation de la création d'un gif animé
+		self.command_string_video = ""
+		self.command_string_video_w = ""
+
 		""" ATTENTION LA LIGNE QUI SUIT VA PROVOQUER UNE ERREUR SI LA NORME DE LA VITESSE DEPASSE vmax"""
 		## Normalisation des couleurs
-		self.color_norm = matplotlib.colors.Normalize(vmin=0.,vmax=2.1)
-		self.color_norm_w = matplotlib.colors.Normalize(vmin=-13,vmax=13)
+		self.color_norm = matplotlib.colors.Normalize(vmin = 0.,vmax = 2.1)
+		self.color_norm_w = matplotlib.colors.Normalize(vmin = -13,vmax = 13)
+		
 		## Enregistrement de la vorticité
 		os.mkdir("./w/")
 		os.mkdir("./vitesse/")
-
-	def callback_gif_loop(self, n, t_simu, t_simu_precedemment_enregistre):
+		
+	def callback_video_loop(self, n, t_simu, t_simu_precedemment_enregistre):
 		plt.clf()
 		# Enregistrement de la norme de la vitesse
-		plt.imshow(np.sqrt(self.u[1:-1, 1:-1]**2+self.v[1:-1, 1:-1]**2), origin='lower', cmap='afmhot', interpolation = 'none', norm = self.color_norm)
+		plt.imshow(np.sqrt(self.u[1:-1, 1:-1]**2+self.v[1:-1, 1:-1]**2), origin='lower', cmap='gray', interpolation = 'none', norm = self.color_norm)
 		plt.colorbar()
 		plt.title("t = {:.2f}".format(t_simu))
 		plt.axis('image')
 		if n<10:		
 			plt.savefig("./vitesse/image000{}.jpg".format(n+1), dpi = self.dpi)
-			file_vitesse=open('video_vitesse.txt', 'a')
-			file_vitesse.write("file 'vitesse/image000{}.jpg'\n".format(n+1))
-			file_vitesse.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+			self.command_string_video += "file 'vitesse/image000{}.jpg'\n".format(n+1)
 		elif n<100:
 			plt.savefig("./vitesse/image00{}.jpg".format(n+1), dpi = self.dpi)
-			file_vitesse=open('video_vitesse.txt', 'a')
-			file_vitesse.write("file 'vitesse/image00{}.jpg'\n".format(n+1))
-			file_vitesse.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+			self.command_string_video += "file 'vitesse/image00{}.jpg'\n".format(n+1)
 		elif n<1000:
 			plt.savefig("./vitesse/image0{}.jpg".format(n+1), dpi = self.dpi)
-			file_vitesse=open('video_vitesse.txt', 'a')
-			file_vitesse.write("file 'vitesse/image0{}.jpg'\n".format(n+1))
-			file_vitesse.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+			self.command_string_video += "file 'vitesse/image0{}.jpg'\n".format(n+1)
 		else:
 			plt.savefig("./vitesse/image{}.jpg".format(n+1), dpi = self.dpi)
-			file_vitesse=open('video_vitesse.txt', 'a')
-			file_vitesse.write("file 'vitesse/image{}.jpg'\n".format(n+1))
-			file_vitesse.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-				
+			self.command_string_video += "file 'vitesse/image{}.jpg'\n".format(n+1)
+		
+		self.command_string_video += "duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video)
+		
 		## Enregistrement de la vorticité
 		plt.clf()
 		plt.imshow(self.w[1:-1,1:-1], origin='lower', cmap='seismic', interpolation = 'none', norm = self.color_norm_w)
@@ -448,26 +450,31 @@ class VonKarman():
 		plt.axis('image')
 		if n<10:		
 			plt.savefig("./w/image000{}.jpg".format(n+1), dpi = self.dpi)
-			file_w=open('video_w.txt', 'a')
-			file_w.write("file 'w/image000{}.jpg'\n".format(n+1))
-			file_w.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+			self.command_string_video_w += "file 'w/image000{}.jpg'\n".format(n+1)
 		elif n<100:
 			plt.savefig("./w/image00{}.jpg".format(n+1), dpi = self.dpi)
-			file_w=open('video_w.txt', 'a')
-			file_w.write("file 'w/image00{}.jpg'\n".format(n+1))
-			file_w.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+			self.command_string_video_w += "file 'w/image00{}.jpg'\n".format(n+1)
 		elif n<1000:
 			plt.savefig("./w/image0{}.jpg".format(n+1), dpi = self.dpi)
-			file_w=open('video_w.txt', 'a')
-			file_w.write("file 'w/image0{}.jpg'\n".format(n+1))
-			file_w.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
+			self.command_string_video_w += "file 'w/image0{}.jpg'\n".format(n+1)
 		else:
 			plt.savefig("./w/image{}.jpg".format(n+1), dpi = self.dpi)
-			file_w=open('video_w.txt', 'a')
-			file_w.write("file 'w/image{}.jpg'\n".format(n+1))
-			file_w.write("duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video))
-	def callback_gif_end(self):
-		np.save("reprise.npy", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re, self.pas_enregistrement, self.dpi, self.vitesse_video, self.t_simu]))
+			self.command_string_video_w += "file 'w/image{}.jpg'\n".format(n+1)
+		
+		self.command_string_video_w += "duration {}\n".format((t_simu-t_simu_precedemment_enregistre)/self.vitesse_video)		
+	
+	def callback_video_end(self):
+		with open("video_vitesse.txt", "w") as saved_commandstring_video:
+			saved_commandstring_video.write(self.command_string_video)
+		with open("video_w.txt", "w") as saved_commandstring_video_w:
+			saved_commandstring_video_w.write(self.command_string_video_w)
+#		with open("video_colorant.txt", "w") as saved_commandstring_video_colorant:
+#			saved_commandstring_video.write(self.command_string_video_colorant)
+		os.chdir(self.dirname)
+		#os.system("ffmpeg -f concat -i video_vitesse.txt vitesse.mp4")
+		#os.system("ffmpeg -f concat -i video_w.txt vorticite.mp4")
+		
+		print("Données enregistrées dans {}.".format(self.dirname))
 	
 	def callback_save_start(self):
 		#Création du dossier pour l'enregistrement
@@ -502,7 +509,9 @@ class VonKarman():
 		os.chdir(self.dirname)
 	
 	def callback_save_end(self):
-		pass
+		np.save("reprise.npy", np.array([self.Lx, self.Ly, self.Nx, self.Ny, self.Nt, self.r, self.Re, self.pas_enregistrement, self.dpi, self.vitesse_video, self.t_simu]))
+
+
 	"""
 	---------------------------------------------------------------------------------
 	|										|										|
@@ -513,19 +522,12 @@ class VonKarman():
 	
 	def main_loop(self, f_callback_start = None, f_callback_loop = None, f_callback_end = None):
 		"""Boucle principe ; appelle f_callback_start au début, f_callback_loop à chaque pas d'enregistrement et f_callback_end à la fin"""
-		if f_callback_start == None:
-			f_callback_start = self.callback_gif_start
-		if f_callback_loop == None:
-			f_callback_loop = self.callback_gif_loop
-		if f_callback_end == None:
-			f_callback_end = self.callback_gif_end
-		
 		self.t_simu = 0
 		self.t_simu_precedemment_enregistre = 0
 
 		t_i = time.time()
 		
-		f_callback_start()
+		self.callback_video_start()
 		self.callback_save_start()
 		## Boucle principale
 		for n in range(self.Nt):
@@ -562,25 +564,25 @@ class VonKarman():
 			## Enregistrement
 			if n%self.pas_enregistrement == 0:
 				print(n, 'sur', self.Nt, " avec un reynolds de ", self.Re)
-				f_callback_loop(n, self.t_simu, self.t_simu_precedemment_enregistre)
+				self.callback_video_loop(n, self.t_simu, self.t_simu_precedemment_enregistre)
 				self.t_simu_precedemment_enregistre = self.t_simu
-				self.callback_save_loop(n)
+			self.callback_save_loop(n)
 		np.save("objet.npy", self.objet)
 		self.callback_save_loop(self.Nt-1)
-		f_callback_end()
+		self.callback_video_end()
+		self.callback_save_end()
 		print("Simulation effectuée en {} s.".format(time.time()-t_i))
 
 
 def loop_Re():
-	Re_list = np.linspace(4,200,50)
+	Re_list = [20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74, 77, 80]
 	for Re in Re_list:
-		simu = VonKarman(Re = Re, Nt = 2000, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5, vitesse_video = 5)
+		simu = VonKarman(Re = int(Re), Nt = 2000, Nx = 1.5*300, Ny = 1.5*100, pas_enregistrement = 5, r = 0.5, vitesse_video = 5)
 		simu.main_loop()
 		os.chdir(simu.root_dir)
 
 def single_Re(Re):
 	expand = 1. #1.5 rapport entre x et y
-	simu = VonKarman(Re = Re, Nt = 2000, Nx = 1.5*300, Ny = 1.5*70, pas_enregistrement = 5, r = 0.5, vitesse_video = 5)
-	#simu.main_loop(simu.callback_correlations_vitesse_start, simu.callback_correlations_vitesse_loop, simu.callback_correlations_vitesse_end)
+	simu = VonKarman(Re = Re, Nt = 15, Nx = 1.5*300, Ny = 1.5*100, pas_enregistrement = 5, r = 0.5, vitesse_video = 5)
 	simu.main_loop()
-single_Re(500)
+loop_Re()
